@@ -82,7 +82,7 @@ export const api = {
     getById: (id: number): Promise<{ seat: Seat }> =>
       apiRequest(`/seats/${id}`),
     
-    create: (seatData: Omit<Seat, 'id' | 'status' | 'created_at' | 'updated_at'>): Promise<{ seat: Seat }> =>
+    create: (seatData: Omit<Seat, 'id' | 'status' | 'created_at' | 'updated_at' | 'is_active' | 'occupied_by' | 'occupied_until' | 'occupied_by_name'>): Promise<{ seat: Seat }> =>
       apiRequest('/seats', {
         method: 'POST',
         body: JSON.stringify(seatData),
@@ -144,10 +144,13 @@ export const api = {
       return apiRequest(`/users${queryString ? `?${queryString}` : ''}`);
     },
     
-    updateRole: (id: number, roleData: UpdateUserRole): Promise<{ user: User }> =>
+    getById: (id: number): Promise<{ user: User }> =>
+      apiRequest(`/users/${id}`),
+    
+    updateRole: (id: number, data: UpdateUserRole): Promise<{ user: User }> =>
       apiRequest(`/users/${id}/role`, {
         method: 'PUT',
-        body: JSON.stringify(roleData),
+        body: JSON.stringify(data),
       }),
     
     delete: (id: number): Promise<{ message: string }> =>
@@ -156,5 +159,3 @@ export const api = {
       }),
   },
 };
-
-export { ApiError };

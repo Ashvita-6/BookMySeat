@@ -1,3 +1,4 @@
+// /types/seat.ts
 export interface Seat {
   id: number;
   floor: number;
@@ -21,5 +22,19 @@ export interface SeatFilter {
   seat_type?: string;
   has_power?: boolean;
   has_monitor?: boolean;
-  status?: 'available' | 'occupied';
+  status?: string;
+}
+
+// /types/user.ts
+export interface User {
+  id: number;
+  email: string;
+  name: string;
+  student_id: string;
+  role: 'student' | 'admin';
+  created_at: string;
+}
+
+export interface UpdateUserRole {
+  role: 'student' | 'admin';
 }

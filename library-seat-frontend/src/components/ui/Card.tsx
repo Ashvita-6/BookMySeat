@@ -19,8 +19,8 @@ const Card: React.FC<CardProps> = ({
     lg: 'p-8',
   };
 
-  const baseClasses = 'bg-white rounded-lg border border-gray-200 shadow-sm';
-  const hoverClasses = hover ? 'hover:shadow-md transition-shadow' : '';
+  const baseClasses = 'bg-gray-800 rounded-lg border border-gray-700 shadow-lg';
+  const hoverClasses = hover ? 'hover:shadow-xl hover:bg-gray-750 transition-all duration-300' : '';
   const combinedClasses = `${baseClasses} ${hoverClasses} ${paddingClasses[padding]} ${className}`;
 
   return (

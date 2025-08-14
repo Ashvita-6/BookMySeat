@@ -22,7 +22,7 @@ const Loading: React.FC<LoadingProps> = ({
   return (
     <div className={combinedClasses}>
       <svg
-        className={`animate-spin text-blue-600 ${sizeClasses[size]}`}
+        className={`animate-spin text-blue-400 ${sizeClasses[size]}`}
         fill="none"
         viewBox="0 0 24 24"
       >
@@ -40,7 +40,7 @@ const Loading: React.FC<LoadingProps> = ({
           className="opacity-75"
         />
       </svg>
-      {text && <p className="text-sm text-gray-600">{text}</p>}
+      {text && <p className="text-sm text-gray-400">{text}</p>}
     </div>
   );
 };
