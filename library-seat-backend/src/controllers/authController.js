@@ -1,15 +1,17 @@
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const pool = require('../config/database');
+const User = require('../models/User');
 
 const register = async (req, res) => {
   try {
     const { email, password, name, student_id } = req.body;
 
     // Check if user already exists
-    const existingUser = await pool.query('SELECT * FROM users WHERE email = $1 OR student_id = $2', [email, student_id]);
+    const existingUser = await User.findOne({
+      $or: [{ email }, { student_id }]
+    });
     
-    if (existingUser.rows.length > 0) {
+    if (existingUser) {
       return res.status(400).json({ error: 'User already exists with this email or student ID' });
     }
 
@@ -18,16 +20,19 @@ const register = async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, saltRounds);
 
     // Create user
-    const result = await pool.query(
-      'INSERT INTO users (email, password, name, student_id, role) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, name, student_id, role, created_at',
-      [email, hashedPassword, name, student_id, 'student']
-    );
+    const user = new User({
+      email,
+      password: hashedPassword,
+      name,
+      student_id: student_id.toUpperCase(),
+      role: 'student'
+    });
 
-    const user = result.rows[0];
+    await user.save();
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      { id: user._id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRE || '24h' }
     );
@@ -36,7 +41,7 @@ const register = async (req, res) => {
       message: 'User registered successfully',
       token,
       user: {
-        id: user.id,
+        id: user._id,
         email: user.email,
         name: user.name,
         student_id: user.student_id,
@@ -45,6 +50,9 @@ const register = async (req, res) => {
     });
   } catch (error) {
     console.error('Registration error:', error);
+    if (error.code === 11000) {
+      return res.status(400).json({ error: 'User already exists with this email or student ID' });
+    }
     res.status(500).json({ error: 'Registration failed' });
   }
 };
@@ -54,13 +62,11 @@ const login = async (req, res) => {
     const { email, password } = req.body;
 
     // Find user
-    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const user = await User.findOne({ email });
     
-    if (result.rows.length === 0) {
+    if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
-
-    const user = result.rows[0];
 
     // Check password
     const isValidPassword = await bcrypt.compare(password, user.password);
@@ -71,7 +77,7 @@ const login = async (req, res) => {
 
     // Generate JWT token
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
+      { id: user._id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRE || '24h' }
     );
@@ -80,7 +86,7 @@ const login = async (req, res) => {
       message: 'Login successful',
       token,
       user: {
-        id: user.id,
+        id: user._id,
         email: user.email,
         name: user.name,
         student_id: user.student_id,
@@ -95,15 +101,15 @@ const login = async (req, res) => {
 
 const getProfile = async (req, res) => {
   try {
-    const user = req.user;
+    const user = await User.findById(req.user.id).select('-password');
     res.json({
       user: {
-        id: user.id,
+        id: user._id,
         email: user.email,
         name: user.name,
         student_id: user.student_id,
         role: user.role,
-        created_at: user.created_at
+        created_at: user.createdAt
       }
     });
   } catch (error) {

@@ -1,23 +1,32 @@
-const pool = require('../config/database');
+const User = require('../models/User');
+const Booking = require('../models/Booking');
 
 const getAllUsers = async (req, res) => {
   try {
     const { role, limit = 20, offset = 0 } = req.query;
 
-    let query = 'SELECT id, email, name, student_id, role, created_at, updated_at FROM users WHERE 1=1';
-    const params = [];
-
+    const query = {};
     if (role) {
-      query += ' AND role = $' + (params.length + 1);
-      params.push(role);
+      query.role = role;
     }
 
-    query += ' ORDER BY created_at DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
-    params.push(limit, offset);
+    const users = await User.find(query)
+      .select('-password')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset));
 
-    const result = await pool.query(query, params);
+    const formattedUsers = users.map(user => ({
+      id: user._id,
+      email: user.email,
+      name: user.name,
+      student_id: user.student_id,
+      role: user.role,
+      created_at: user.createdAt,
+      updated_at: user.updatedAt
+    }));
 
-    res.json({ users: result.rows });
+    res.json({ users: formattedUsers });
   } catch (error) {
     console.error('Get users error:', error);
     res.status(500).json({ error: 'Failed to get users' });
@@ -33,18 +42,26 @@ const updateUserRole = async (req, res) => {
       return res.status(400).json({ error: 'Invalid role' });
     }
 
-    const result = await pool.query(
-      'UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2 RETURNING id, email, name, student_id, role, updated_at',
-      [role, id]
-    );
+    const user = await User.findByIdAndUpdate(
+      id,
+      { role },
+      { new: true, runValidators: true }
+    ).select('-password');
 
-    if (result.rows.length === 0) {
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
     res.json({
       message: 'User role updated successfully',
-      user: result.rows[0]
+      user: {
+        id: user._id,
+        email: user.email,
+        name: user.name,
+        student_id: user.student_id,
+        role: user.role,
+        updated_at: user.updatedAt
+      }
     });
   } catch (error) {
     console.error('Update user role error:', error);
@@ -57,18 +74,19 @@ const deleteUser = async (req, res) => {
     const { id } = req.params;
 
     // Check if user has active bookings
-    const activeBookings = await pool.query(
-      'SELECT * FROM bookings WHERE user_id = $1 AND status = $2 AND end_time > NOW()',
-      [id, 'active']
-    );
+    const activeBookings = await Booking.find({
+      user_id: id,
+      status: 'active',
+      end_time: { $gt: new Date() }
+    });
 
-    if (activeBookings.rows.length > 0) {
+    if (activeBookings.length > 0) {
       return res.status(400).json({ error: 'Cannot delete user with active bookings' });
     }
 
-    const result = await pool.query('DELETE FROM users WHERE id = $1 RETURNING *', [id]);
+    const user = await User.findByIdAndDelete(id);
 
-    if (result.rows.length === 0) {
+    if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
@@ -79,4 +97,4 @@ const deleteUser = async (req, res) => {
   }
 };
 
-module.exports = { getAllUsers, updateUserRole,deleteUser};
+module.exports = { getAllUsers, updateUserRole, deleteUser };

@@ -1,19 +1,16 @@
 const express = require('express');
 const cors = require('cors');
-const { Pool } = require('pg');
+const connectDB = require('./config/database');
 require('dotenv').config();
 
 const app = express();
 
+// Connect to MongoDB
+connectDB();
+
 // Middleware
 app.use(cors());
 app.use(express.json());
-
-// Database connection
-const pool = require('./config/database');
-
-// Make pool available globally
-app.locals.db = pool;
 
 // Routes
 app.use('/api/auth', require('./routes/auth'));

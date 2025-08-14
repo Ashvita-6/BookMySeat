@@ -1,80 +1,93 @@
-const pool = require('../config/database');
+const Booking = require('../models/Booking');
+const Seat = require('../models/Seat');
+const User = require('../models/User');
 
 const createBooking = async (req, res) => {
-  const client = await pool.connect();
-  
   try {
-    await client.query('BEGIN');
-    
     const { seat_id, start_time, end_time } = req.body;
     const user_id = req.user.id;
 
     // Check if seat exists and is active
-    const seatResult = await client.query('SELECT * FROM seats WHERE id = $1 AND is_active = true', [seat_id]);
-    
-    if (seatResult.rows.length === 0) {
-      await client.query('ROLLBACK');
+    const seat = await Seat.findById(seat_id);
+    if (!seat || !seat.is_active) {
       return res.status(404).json({ error: 'Seat not found or inactive' });
     }
 
     // Check if seat is available during the requested time
-    const conflictResult = await client.query(
-      'SELECT * FROM bookings WHERE seat_id = $1 AND status = $2 AND (($3 BETWEEN start_time AND end_time) OR ($4 BETWEEN start_time AND end_time) OR (start_time BETWEEN $3 AND $4))',
-      [seat_id, 'active', start_time, end_time]
-    );
+    const conflictingBooking = await Booking.findOne({
+      seat_id,
+      status: 'active',
+      $or: [
+        {
+          start_time: { $lt: end_time },
+          end_time: { $gt: start_time }
+        }
+      ]
+    });
 
-    if (conflictResult.rows.length > 0) {
-      await client.query('ROLLBACK');
+    if (conflictingBooking) {
       return res.status(400).json({ error: 'Seat is not available during the requested time' });
     }
 
     // Check user's active bookings limit
-    const userActiveBookings = await client.query(
-      'SELECT COUNT(*) FROM bookings WHERE user_id = $1 AND status = $2 AND end_time > NOW()',
-      [user_id, 'active']
-    );
+    const userActiveBookings = await Booking.countDocuments({
+      user_id,
+      status: 'active',
+      end_time: { $gt: new Date() }
+    });
 
-    if (userActiveBookings.rows[0].count >= 2) { // Limit to 2 active bookings per user
-      await client.query('ROLLBACK');
+    if (userActiveBookings >= 2) {
       return res.status(400).json({ error: 'Maximum active bookings limit reached' });
     }
 
     // Create booking
-    const bookingResult = await client.query(
-      'INSERT INTO bookings (user_id, seat_id, start_time, end_time, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [user_id, seat_id, start_time, end_time, 'active']
-    );
+    const booking = new Booking({
+      user_id,
+      seat_id,
+      start_time: new Date(start_time),
+      end_time: new Date(end_time),
+      status: 'active'
+    });
 
-    await client.query('COMMIT');
-
-    const booking = bookingResult.rows[0];
+    await booking.save();
 
     // Get complete booking info with seat and user details
-    const completeBooking = await pool.query(`
-      SELECT b.*, s.floor, s.section, s.seat_number, s.seat_type, u.name as user_name
-      FROM bookings b
-      JOIN seats s ON b.seat_id = s.id
-      JOIN users u ON b.user_id = u.id
-      WHERE b.id = $1
-    `, [booking.id]);
+    const completeBooking = await Booking.findById(booking._id)
+      .populate('seat_id', 'floor section seat_number seat_type')
+      .populate('user_id', 'name');
+
+    const response = {
+      id: completeBooking._id,
+      user_id: completeBooking.user_id._id,
+      seat_id: completeBooking.seat_id._id,
+      start_time: completeBooking.start_time,
+      end_time: completeBooking.end_time,
+      status: completeBooking.status,
+      floor: completeBooking.seat_id.floor,
+      section: completeBooking.seat_id.section,
+      seat_number: completeBooking.seat_id.seat_number,
+      seat_type: completeBooking.seat_id.seat_type,
+      user_name: completeBooking.user_id.name,
+      created_at: completeBooking.createdAt,
+      updated_at: completeBooking.updatedAt
+    };
 
     res.status(201).json({
       message: 'Booking created successfully',
-      booking: completeBooking.rows[0]
+      booking: response
     });
 
-    // Emit socket event for real-time updates
-    req.app.locals.io?.emit('seatBooked', {
-      seat_id,
-      booking: completeBooking.rows[0]
-    });
+    // Emit socket event for real-time updates (if io is available)
+    if (req.app.locals.io) {
+      req.app.locals.io.emit('seatBooked', {
+        seat_id,
+        booking: response
+      });
+    }
 
   } catch (error) {
-    await client.query('ROLLBACK');
     console.error('Create booking error:', error);
     res.status(500).json({ error: 'Failed to create booking' });
-  } finally {
-    client.release();
   }
 };
 
@@ -83,25 +96,33 @@ const getUserBookings = async (req, res) => {
     const user_id = req.user.id;
     const { status, limit = 10, offset = 0 } = req.query;
 
-    let query = `
-      SELECT b.*, s.floor, s.section, s.seat_number, s.seat_type
-      FROM bookings b
-      JOIN seats s ON b.seat_id = s.id
-      WHERE b.user_id = $1
-    `;
-    const params = [user_id];
-
+    const query = { user_id };
     if (status) {
-      query += ' AND b.status = $2';
-      params.push(status);
+      query.status = status;
     }
 
-    query += ' ORDER BY b.created_at DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
-    params.push(limit, offset);
+    const bookings = await Booking.find(query)
+      .populate('seat_id', 'floor section seat_number seat_type')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset));
 
-    const result = await pool.query(query, params);
+    const formattedBookings = bookings.map(booking => ({
+      id: booking._id,
+      user_id: booking.user_id,
+      seat_id: booking.seat_id._id,
+      start_time: booking.start_time,
+      end_time: booking.end_time,
+      status: booking.status,
+      floor: booking.seat_id.floor,
+      section: booking.seat_id.section,
+      seat_number: booking.seat_id.seat_number,
+      seat_type: booking.seat_id.seat_type,
+      created_at: booking.createdAt,
+      updated_at: booking.updatedAt
+    }));
 
-    res.json({ bookings: result.rows });
+    res.json({ bookings: formattedBookings });
   } catch (error) {
     console.error('Get user bookings error:', error);
     res.status(500).json({ error: 'Failed to get bookings' });
@@ -114,37 +135,44 @@ const cancelBooking = async (req, res) => {
     const user_id = req.user.id;
 
     // Check if booking exists and belongs to user
-    const bookingResult = await pool.query(
-      'SELECT * FROM bookings WHERE id = $1 AND user_id = $2',
-      [id, user_id]
-    );
+    const booking = await Booking.findOne({
+      _id: id,
+      user_id
+    });
 
-    if (bookingResult.rows.length === 0) {
+    if (!booking) {
       return res.status(404).json({ error: 'Booking not found' });
     }
-
-    const booking = bookingResult.rows[0];
 
     if (booking.status !== 'active') {
       return res.status(400).json({ error: 'Booking is not active' });
     }
 
     // Update booking status
-    const result = await pool.query(
-      'UPDATE bookings SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
-      ['cancelled', id]
-    );
+    booking.status = 'cancelled';
+    await booking.save();
 
     res.json({
       message: 'Booking cancelled successfully',
-      booking: result.rows[0]
+      booking: {
+        id: booking._id,
+        user_id: booking.user_id,
+        seat_id: booking.seat_id,
+        start_time: booking.start_time,
+        end_time: booking.end_time,
+        status: booking.status,
+        created_at: booking.createdAt,
+        updated_at: booking.updatedAt
+      }
     });
 
     // Emit socket event for real-time updates
-    req.app.locals.io?.emit('seatFreed', {
-      seat_id: booking.seat_id,
-      booking_id: id
-    });
+    if (req.app.locals.io) {
+      req.app.locals.io.emit('seatFreed', {
+        seat_id: booking.seat_id,
+        booking_id: id
+      });
+    }
 
   } catch (error) {
     console.error('Cancel booking error:', error);
@@ -156,31 +184,35 @@ const getAllBookings = async (req, res) => {
   try {
     const { status, seat_id, limit = 20, offset = 0 } = req.query;
 
-    let query = `
-      SELECT b.*, s.floor, s.section, s.seat_number, s.seat_type, u.name as user_name, u.student_id
-      FROM bookings b
-      JOIN seats s ON b.seat_id = s.id
-      JOIN users u ON b.user_id = u.id
-      WHERE 1=1
-    `;
-    const params = [];
+    const query = {};
+    if (status) query.status = status;
+    if (seat_id) query.seat_id = seat_id;
 
-    if (status) {
-      query += ' AND b.status = $' + (params.length + 1);
-      params.push(status);
-    }
+    const bookings = await Booking.find(query)
+      .populate('seat_id', 'floor section seat_number seat_type')
+      .populate('user_id', 'name student_id')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .skip(parseInt(offset));
 
-    if (seat_id) {
-      query += ' AND b.seat_id = $' + (params.length + 1);
-      params.push(seat_id);
-    }
+    const formattedBookings = bookings.map(booking => ({
+      id: booking._id,
+      user_id: booking.user_id._id,
+      seat_id: booking.seat_id._id,
+      start_time: booking.start_time,
+      end_time: booking.end_time,
+      status: booking.status,
+      floor: booking.seat_id.floor,
+      section: booking.seat_id.section,
+      seat_number: booking.seat_id.seat_number,
+      seat_type: booking.seat_id.seat_type,
+      user_name: booking.user_id.name,
+      student_id: booking.user_id.student_id,
+      created_at: booking.createdAt,
+      updated_at: booking.updatedAt
+    }));
 
-    query += ' ORDER BY b.created_at DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
-    params.push(limit, offset);
-
-    const result = await pool.query(query, params);
-
-    res.json({ bookings: result.rows });
+    res.json({ bookings: formattedBookings });
   } catch (error) {
     console.error('Get all bookings error:', error);
     res.status(500).json({ error: 'Failed to get bookings' });
