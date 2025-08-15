@@ -76,18 +76,44 @@ export default function SeatGrid({ seats, onBookSeat, userBookings }: SeatGridPr
     );
   };
 
-  const handleSeatClick = (seat: Seat) => {
-    if (seat.status === 'occupied') return;
-    setSelectedSeat(seat);
-    setShowBookingModal(true);
-    
-    // Set default times (current time to 2 hours later)
-    const now = new Date();
-    const later = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-    
-    setStartTime(now.toISOString().slice(0, 16));
-    setEndTime(later.toISOString().slice(0, 16));
+const handleSeatClick = (seat: Seat) => {
+  if (seat.status === 'occupied') return;
+  setSelectedSeat(seat);
+  setShowBookingModal(true);
+  
+  // Set default times with proper current time handling
+  const now = new Date();
+  
+  // Round up to the next 15-minute interval for better UX
+  const minutes = now.getMinutes();
+  const roundedMinutes = Math.ceil(minutes / 15) * 15;
+  now.setMinutes(roundedMinutes, 0, 0);
+  
+  // If we've rolled over to the next hour, adjust accordingly
+  if (roundedMinutes >= 60) {
+    now.setHours(now.getHours() + 1);
+    now.setMinutes(0, 0, 0);
+  }
+  
+  // Set end time to 2 hours later
+  const later = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+  
+  // Format for datetime-local input (YYYY-MM-DDTHH:MM)
+  const formatForDateTimeLocal = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
+  
+  setStartTime(formatForDateTimeLocal(now));
+  setEndTime(formatForDateTimeLocal(later));
+};
+
+
+
 
   const handleBookSeat = async () => {
     if (!selectedSeat || !startTime || !endTime) return;
@@ -103,6 +129,12 @@ export default function SeatGrid({ seats, onBookSeat, userBookings }: SeatGridPr
       setIsBooking(false);
     }
   };
+
+  const getMinDateTime = () => {
+  const now = new Date();
+  return now.toISOString().slice(0, 16);
+};
+
 
   const isUserBooking = (seatId: number) => {
     return userBookings.some(booking => booking.seat_id === seatId);
@@ -236,11 +268,13 @@ export default function SeatGrid({ seats, onBookSeat, userBookings }: SeatGridPr
                 Start Time
               </label>
               <input
-                type="datetime-local"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+  type="datetime-local"
+  value={startTime}
+  onChange={(e) => setStartTime(e.target.value)}
+  min={getMinDateTime()} // Prevents selecting past times
+  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+/>
+
             </div>
 
             <div>
@@ -248,11 +282,12 @@ export default function SeatGrid({ seats, onBookSeat, userBookings }: SeatGridPr
                 End Time
               </label>
               <input
-                type="datetime-local"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
+  type="datetime-local"
+  value={endTime}
+  onChange={(e) => setEndTime(e.target.value)}
+  min={startTime} // Ensures end time is after start time
+  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+/>
             </div>
 
             <div className="flex gap-3 pt-4">

@@ -2,10 +2,44 @@ const Booking = require('../models/Booking');
 const Seat = require('../models/Seat');
 const User = require('../models/User');
 
+// library-seat-backend/src/controllers/bookingController.js
+// Updated createBooking function with better error handling and validation
+
 const createBooking = async (req, res) => {
   try {
     const { seat_id, start_time, end_time } = req.body;
     const user_id = req.user.id;
+
+    console.log('Booking request data:', { seat_id, start_time, end_time, user_id });
+
+    // Validate and parse times
+    const startDate = new Date(start_time);
+    const endDate = new Date(end_time);
+    const now = new Date();
+
+    // Additional time validations
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      return res.status(400).json({ error: 'Invalid date format' });
+    }
+
+    if (startDate <= now) {
+      return res.status(400).json({ error: 'Start time must be in the future' });
+    }
+
+    if (endDate <= startDate) {
+      return res.status(400).json({ error: 'End time must be after start time' });
+    }
+
+    // Check maximum booking duration (4 hours)
+    const durationHours = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
+    if (durationHours > 4) {
+      return res.status(400).json({ error: 'Maximum booking duration is 4 hours' });
+    }
+
+    // Check minimum booking duration (30 minutes)
+    if (durationHours < 0.5) {
+      return res.status(400).json({ error: 'Minimum booking duration is 30 minutes' });
+    }
 
     // Check if seat exists and is active
     const seat = await Seat.findById(seat_id);
@@ -13,43 +47,52 @@ const createBooking = async (req, res) => {
       return res.status(404).json({ error: 'Seat not found or inactive' });
     }
 
+    console.log('Seat found:', seat);
+
     // Check if seat is available during the requested time
     const conflictingBooking = await Booking.findOne({
       seat_id,
       status: 'active',
       $or: [
         {
-          start_time: { $lt: end_time },
-          end_time: { $gt: start_time }
+          start_time: { $lt: endDate },
+          end_time: { $gt: startDate }
         }
       ]
     });
 
     if (conflictingBooking) {
-      return res.status(400).json({ error: 'Seat is not available during the requested time' });
+      return res.status(400).json({ 
+        error: 'Seat is not available during the requested time',
+        conflicting_booking: {
+          start: conflictingBooking.start_time,
+          end: conflictingBooking.end_time
+        }
+      });
     }
 
     // Check user's active bookings limit
     const userActiveBookings = await Booking.countDocuments({
       user_id,
       status: 'active',
-      end_time: { $gt: new Date() }
+      end_time: { $gt: now }
     });
 
     if (userActiveBookings >= 2) {
-      return res.status(400).json({ error: 'Maximum active bookings limit reached' });
+      return res.status(400).json({ error: 'Maximum active bookings limit (2) reached' });
     }
 
     // Create booking
     const booking = new Booking({
       user_id,
       seat_id,
-      start_time: new Date(start_time),
-      end_time: new Date(end_time),
+      start_time: startDate,
+      end_time: endDate,
       status: 'active'
     });
 
     await booking.save();
+    console.log('Booking created:', booking);
 
     // Get complete booking info with seat and user details
     const completeBooking = await Booking.findById(booking._id)
@@ -87,6 +130,19 @@ const createBooking = async (req, res) => {
 
   } catch (error) {
     console.error('Create booking error:', error);
+    
+    // Handle specific MongoDB/Mongoose errors
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ 
+        error: 'Validation error',
+        details: Object.values(error.errors).map(e => e.message)
+      });
+    }
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({ error: 'Invalid seat ID format' });
+    }
+    
     res.status(500).json({ error: 'Failed to create booking' });
   }
 };
