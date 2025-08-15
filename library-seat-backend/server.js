@@ -3,6 +3,14 @@ const { Server } = require('socket.io');
 const http = require('http');
 require('dotenv').config();
 
+const cors = require('cors');
+
+
+app.use(cors({
+  origin: 'http://localhost:3000', // your frontend origin
+  credentials: true
+}));
+
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -14,7 +22,7 @@ const io = new Server(server, {
 // Socket.io setup
 require('./src/socket/socketHandlers')(io);
 
-const PORT = process.env.PORT || 5000;
+const PORT = 5001;
 
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

@@ -1,3 +1,4 @@
+// library-seat-backend/src/middleware/validation.js
 const Joi = require('joi');
 
 const validateUser = (req, res, next) => {
@@ -30,9 +31,20 @@ const validateLogin = (req, res, next) => {
 
 const validateBooking = (req, res, next) => {
   const schema = Joi.object({
-    seat_id: Joi.number().integer().positive().required(),
-    start_time: Joi.date().iso().required(),
-    end_time: Joi.date().iso().greater(Joi.ref('start_time')).required()
+    // Updated to accept both string (ObjectId) and number
+    seat_id: Joi.alternatives().try(
+      Joi.string().pattern(/^[0-9a-fA-F]{24}$/), // MongoDB ObjectId pattern
+      Joi.number().integer().positive()
+    ).required().messages({
+      'alternatives.match': 'seat_id must be a valid ObjectId or positive number',
+      'any.required': 'seat_id is required'
+    }),
+    start_time: Joi.date().iso().min('now').required().messages({
+      'date.min': 'Start time must be in the future'
+    }),
+    end_time: Joi.date().iso().greater(Joi.ref('start_time')).required().messages({
+      'date.greater': 'End time must be after start time'
+    })
   });
 
   const { error } = schema.validate(req.body);

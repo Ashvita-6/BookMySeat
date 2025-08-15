@@ -12,7 +12,7 @@ class SocketService {
     const token = authService.getToken();
     if (!token) return;
 
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5000';
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:5001';
     
     this.socket = io(socketUrl, {
       auth: {
