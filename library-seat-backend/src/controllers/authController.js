@@ -1,4 +1,5 @@
-const bcrypt = require('bcrypt');
+// library-seat-backend/src/controllers/authController.js
+const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
@@ -7,30 +8,34 @@ const register = async (req, res) => {
     const { email, password, name, student_id } = req.body;
 
     // Check if user already exists
-    const existingUser = await User.findOne({
-      $or: [{ email }, { student_id }]
+    const existingUser = await User.findOne({ 
+      $or: [{ email }, { student_id }] 
     });
     
     if (existingUser) {
-      return res.status(400).json({ error: 'User already exists with this email or student ID' });
+      return res.status(400).json({ 
+        error: existingUser.email === email 
+          ? 'Email already registered' 
+          : 'Student ID already registered' 
+      });
     }
 
     // Hash password
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
 
     // Create user
     const user = new User({
       email,
       password: hashedPassword,
       name,
-      student_id: student_id.toUpperCase(),
+      student_id,
       role: 'student'
     });
 
     await user.save();
 
-    // Generate JWT token
+    // Generate JWT
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
       process.env.JWT_SECRET,
@@ -50,9 +55,6 @@ const register = async (req, res) => {
     });
   } catch (error) {
     console.error('Registration error:', error);
-    if (error.code === 11000) {
-      return res.status(400).json({ error: 'User already exists with this email or student ID' });
-    }
     res.status(500).json({ error: 'Registration failed' });
   }
 };
@@ -63,19 +65,17 @@ const login = async (req, res) => {
 
     // Find user
     const user = await User.findOne({ email });
-    
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     // Check password
-    const isValidPassword = await bcrypt.compare(password, user.password);
-    
-    if (!isValidPassword) {
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Generate JWT token
+    // Generate JWT
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
       process.env.JWT_SECRET,

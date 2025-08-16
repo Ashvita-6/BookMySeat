@@ -1,20 +1,18 @@
 // library-seat-backend/server.js
 require('dotenv').config();
 
-const app = require('./src/app');
+const { app, server } = require('./src/app');
 const connectDB = require('./src/config/database');
 
 // Improved error handling
 process.on('uncaughtException', (error) => {
   console.error('Uncaught Exception:', error);
   console.error('Stack:', error.stack);
-  // Don't exit immediately, log the error but continue
   console.log('Server continuing despite uncaught exception...');
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  // Don't exit the process, just log the error
   console.log('Server continuing despite unhandled rejection...');
 });
 
@@ -25,9 +23,9 @@ const startServer = async () => {
     await connectDB();
     console.log('✓ Database connected successfully');
 
-    const PORT = process.env.PORT || 5000;
+    const PORT = process.env.PORT || 5001;
     
-    const server = app.listen(PORT, (error) => {
+    server.listen(PORT, (error) => {
       if (error) {
         console.error('❌ Failed to start server:', error);
         process.exit(1);
@@ -82,14 +80,14 @@ const startServer = async () => {
     // Try to give more specific error messages
     if (error.message.includes('EADDRINUSE')) {
       console.error('💡 Port is already in use. Try:');
-      console.error('   - Kill existing process: pkill -f node');
-      console.error('   - Use different port: PORT=5001 npm start');
+      console.error('   - Kill existing process: taskkill /f /im node.exe');
+      console.error('   - Use different port: set PORT=5002 && npm start');
     }
     
     if (error.message.includes('MongoNetworkError')) {
       console.error('💡 Database connection failed. Check:');
-      console.error('   - MongoDB is running: brew services start mongodb/brew/mongodb-community');
-      console.error('   - Connection string in .env file');
+      console.error('   - MongoDB connection string in .env file');
+      console.error('   - Network connectivity to MongoDB Atlas');
     }
     
     process.exit(1);

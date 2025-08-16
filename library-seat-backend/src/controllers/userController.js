@@ -1,3 +1,4 @@
+// library-seat-backend/src/controllers/userController.js
 const User = require('../models/User');
 const Booking = require('../models/Booking');
 
