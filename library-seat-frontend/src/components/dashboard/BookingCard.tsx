@@ -1,18 +1,14 @@
+// library-seat-frontend/src/components/dashboard/BookingCard.tsx
 import { useState } from 'react';
 import { format } from 'date-fns';
 import Button from '../ui/Button';
-
-interface Booking {
-  id: number;
-  seat_id: number;
-  start_time: string;
-  end_time: string;
-  status: 'active' | 'completed' | 'cancelled';
-  floor: number;
-  section: string;
-  seat_number: string;
-  seat_type: string;
-}
+import { Booking } from '../../types/booking';
+import { 
+  getSeatDisplayName, 
+  BOOKING_STATUS, 
+  getLocationDisplayName,
+  SEAT_TYPES 
+} from '../../utils/libraryStructure';
 
 interface BookingCardProps {
   booking: Booking;
@@ -32,17 +28,34 @@ export default function BookingCard({ booking, onCancel }: BookingCardProps) {
   };
 
   const getSeatTypeColor = (type: string) => {
-    switch (type) {
-      case 'individual': return 'bg-blue-600';
-      case 'group': return 'bg-green-600';
-      case 'quiet': return 'bg-purple-600';
-      case 'computer': return 'bg-orange-600';
-      default: return 'bg-gray-600';
-    }
+    return SEAT_TYPES[type as keyof typeof SEAT_TYPES]?.color || 'bg-gray-600';
+  };
+
+  const getStatusConfig = (status: string) => {
+    return BOOKING_STATUS[status as keyof typeof BOOKING_STATUS] || {
+      label: status,
+      color: 'bg-gray-500',
+      description: ''
+    };
   };
 
   const getTimeRemaining = () => {
     const now = new Date();
+    
+    // Check confirmation deadline for pending bookings
+    if (booking.status === 'pending' && booking.confirmation_deadline) {
+      const deadline = new Date(booking.confirmation_deadline);
+      const timeDiff = deadline.getTime() - now.getTime();
+      
+      if (timeDiff <= 0) return 'Deadline passed';
+      
+      const minutes = Math.floor(timeDiff / (1000 * 60));
+      const seconds = Math.floor((timeDiff % (1000 * 60)) / 1000);
+      
+      return `${minutes}m ${seconds}s to connect WiFi`;
+    }
+    
+    // Regular booking time remaining
     const endTime = new Date(booking.end_time);
     const diff = endTime.getTime() - now.getTime();
     
@@ -59,10 +72,23 @@ export default function BookingCard({ booking, onCancel }: BookingCardProps) {
 
   const isExpiring = () => {
     const now = new Date();
+    
+    if (booking.status === 'pending' && booking.confirmation_deadline) {
+      const deadline = new Date(booking.confirmation_deadline);
+      const timeDiff = deadline.getTime() - now.getTime();
+      return timeDiff <= 5 * 60 * 1000; // 5 minutes
+    }
+    
     const endTime = new Date(booking.end_time);
     const diff = endTime.getTime() - now.getTime();
     return diff <= 30 * 60 * 1000; // 30 minutes
   };
+
+  const canCancel = (): boolean => {
+    return (['pending', 'confirmed', 'active'] as const).includes(booking.status as any);
+  };
+
+  const statusConfig = getStatusConfig(booking.status);
 
   return (
     <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
@@ -71,24 +97,37 @@ export default function BookingCard({ booking, onCancel }: BookingCardProps) {
           <div className={`w-3 h-3 rounded-full ${getSeatTypeColor(booking.seat_type)}`}></div>
           <div>
             <h4 className="font-medium text-white">
-              Seat {booking.section}{booking.seat_number}
+              {getSeatDisplayName(booking)}
             </h4>
             <p className="text-sm text-gray-400">
-              Floor {booking.floor} • {booking.seat_type}
+              {getLocationDisplayName(booking.building, booking.floor_hall)}
             </p>
           </div>
         </div>
-        <Button
-          onClick={handleCancel}
-          loading={isCancelling}
-          size="sm"
-          variant="danger"
-          className="bg-red-600 hover:bg-red-700 text-white"
-        >
-          Cancel
-        </Button>
+        {canCancel() && (
+          <Button
+            onClick={handleCancel}
+            loading={isCancelling}
+            size="sm"
+            variant="danger"
+            className="bg-red-600 hover:bg-red-700 text-white"
+          >
+            Cancel
+          </Button>
+        )}
       </div>
 
+      {/* Status Badge */}
+      <div className="mb-3">
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusConfig.color} text-white`}>
+          {statusConfig.label}
+        </span>
+        {statusConfig.description && (
+          <p className="text-xs text-gray-400 mt-1">{statusConfig.description}</p>
+        )}
+      </div>
+
+      {/* Booking Details */}
       <div className="space-y-2 text-sm">
         <div className="flex justify-between">
           <span className="text-gray-400">Start:</span>
@@ -102,6 +141,16 @@ export default function BookingCard({ booking, onCancel }: BookingCardProps) {
             {format(new Date(booking.end_time), 'MMM dd, HH:mm')}
           </span>
         </div>
+        
+        {booking.confirmed_at && (
+          <div className="flex justify-between">
+            <span className="text-gray-400">Confirmed:</span>
+            <span className="text-green-400">
+              {format(new Date(booking.confirmed_at), 'MMM dd, HH:mm')}
+            </span>
+          </div>
+        )}
+        
         <div className="flex justify-between">
           <span className="text-gray-400">Status:</span>
           <span className={`font-medium ${isExpiring() ? 'text-orange-400' : 'text-green-400'}`}>
@@ -110,9 +159,22 @@ export default function BookingCard({ booking, onCancel }: BookingCardProps) {
         </div>
       </div>
 
-      {isExpiring() && (
+      {/* Warning Messages */}
+      {booking.status === 'pending' && (
+        <div className="mt-3 p-2 bg-yellow-900/50 border border-yellow-700 rounded text-yellow-300 text-xs">
+          📶 Connect to library WiFi to confirm your booking
+        </div>
+      )}
+      
+      {isExpiring() && booking.status !== 'pending' && (
         <div className="mt-3 p-2 bg-orange-900/50 border border-orange-700 rounded text-orange-300 text-xs">
           ⚠️ Booking expires soon!
+        </div>
+      )}
+      
+      {booking.status === 'auto_cancelled' && (
+        <div className="mt-3 p-2 bg-red-900/50 border border-red-700 rounded text-red-300 text-xs">
+          ❌ Auto-cancelled: No WiFi confirmation within 15 minutes
         </div>
       )}
     </div>

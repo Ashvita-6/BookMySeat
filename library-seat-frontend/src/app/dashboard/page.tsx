@@ -1,3 +1,4 @@
+// library-seat-frontend/src/app/dashboard/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -9,32 +10,14 @@ import Card from '../../components/ui/Card';
 import SeatGrid from '../../components/dashboard/SeatGrid';
 import BookingCard from '../../components/dashboard/BookingCard';
 import { api } from '../../services/api';
-
-interface Seat {
-  id: number;
-  floor: number;
-  section: string;
-  seat_number: string;
-  seat_type: 'individual' | 'group' | 'quiet' | 'computer';
-  has_power: boolean;
-  has_monitor: boolean;
-  status: 'available' | 'occupied';
-  occupied_by?: number;
-  occupied_until?: string;
-  occupied_by_name?: string;
-}
-
-interface Booking {
-  id: number;
-  seat_id: number;
-  start_time: string;
-  end_time: string;
-  status: 'active' | 'completed' | 'cancelled';
-  floor: number;
-  section: string;
-  seat_number: string;
-  seat_type: string;
-}
+import { Seat  } from '../../types/seat';
+import { Booking } from '../../types/booking';
+import { 
+  BUILDING_OPTIONS, 
+  getFloorHallOptions, 
+  SEAT_TYPES,
+  LIBRARY_STRUCTURE 
+} from '../../utils/libraryStructure';
 
 export default function DashboardPage() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
@@ -42,7 +25,8 @@ export default function DashboardPage() {
   const [seats, setSeats] = useState<Seat[]>([]);
   const [myBookings, setMyBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedFloor, setSelectedFloor] = useState(1);
+  const [selectedBuilding, setSelectedBuilding] = useState<'main' | 'reading'>('main');
+  const [selectedFloorHall, setSelectedFloorHall] = useState<string>('ground_floor');
   const [selectedSeatType, setSelectedSeatType] = useState<string>('all');
   const [error, setError] = useState('');
 
@@ -57,16 +41,29 @@ export default function DashboardPage() {
     }
   }, [authLoading, isAuthenticated, router]);
 
+  // Reset floor/hall when building changes
+  useEffect(() => {
+    const floorHallOptions = getFloorHallOptions(selectedBuilding);
+    if (floorHallOptions.length > 0) {
+      setSelectedFloorHall(floorHallOptions[0].value);
+    }
+  }, [selectedBuilding]);
+
   const loadData = async () => {
     try {
       setIsLoading(true);
       const [seatsResponse, bookingsResponse] = await Promise.all([
         api.seats.getAll(),
-        api.bookings.getMyBookings('active')
+        api.bookings.getMyBookings()
       ]);
       
       setSeats(seatsResponse.seats);
-      setMyBookings(bookingsResponse.bookings);
+      
+      // Filter active bookings (including pending ones)
+      const activeBookings = bookingsResponse.bookings.filter((booking: Booking) => 
+        ['pending', 'confirmed', 'active'].includes(booking.status)
+      );
+      setMyBookings(activeBookings);
     } catch (err: any) {
       setError(err.message || 'Failed to load data');
     } finally {
@@ -92,12 +89,51 @@ export default function DashboardPage() {
   const handleCancelBooking = async (bookingId: number) => {
     try {
       await api.bookings.cancel(bookingId);
-      // Reload data to reflect changes
       await loadData();
     } catch (err: any) {
       setError(err.message || 'Failed to cancel booking');
     }
   };
+
+  // Filter seats based on selected building and floor/hall
+  const filteredSeats = seats.filter(seat => {
+    if (seat.building !== selectedBuilding) return false;
+    if (seat.floor_hall !== selectedFloorHall) return false;
+    if (selectedSeatType !== 'all' && seat.seat_type !== selectedSeatType) return false;
+    return true;
+  });
+
+  // Get available seat types for the selected location
+  const getAvailableSeatTypes = () => {
+    if (selectedBuilding === 'main') {
+      const structure = LIBRARY_STRUCTURE.main[selectedFloorHall as keyof typeof LIBRARY_STRUCTURE.main];
+      if (!structure) return ['all'];
+      
+      const availableTypes = new Set<string>(['all']);
+      Object.values(structure.sections).forEach(section => {
+        availableTypes.add(section.type);
+      });
+      
+      return Array.from(availableTypes);
+    } else {
+      const structure = LIBRARY_STRUCTURE.reading[selectedFloorHall as keyof typeof LIBRARY_STRUCTURE.reading];
+      if (!structure) return ['all'];
+      
+      const availableTypes = new Set<string>(['all']);
+      Object.values(structure.sections).forEach(section => {
+        availableTypes.add(section.type);
+      });
+      
+      return Array.from(availableTypes);
+    }
+  };
+
+  const seatTypeOptions = getAvailableSeatTypes().map(type => ({
+    value: type,
+    label: type === 'all' ? 'All Types' : SEAT_TYPES[type as keyof typeof SEAT_TYPES]?.label || type
+  }));
+
+  const floorHallOptions = getFloorHallOptions(selectedBuilding);
 
   if (authLoading || isLoading) {
     return (
@@ -107,34 +143,14 @@ export default function DashboardPage() {
     );
   }
 
-  if (!isAuthenticated) {
-    return null;
-  }
-
-  const filteredSeats = seats.filter(seat => {
-    const floorMatch = seat.floor === selectedFloor;
-    const typeMatch = selectedSeatType === 'all' || seat.seat_type === selectedSeatType;
-    return floorMatch && typeMatch;
-  });
-
-  const floors = [...new Set(seats.map(seat => seat.floor))].sort((a, b) => a - b);
-  const seatTypes = [
-    { value: 'all', label: 'All Types' },
-    { value: 'individual', label: 'Individual' },
-    { value: 'group', label: 'Group Study' },
-    { value: 'quiet', label: 'Quiet Zone' },
-    { value: 'computer', label: 'Computer Station' }
-  ];
-
   return (
-    <div className="min-h-screen bg-gray-900">
-      {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-            <p className="text-gray-400">Welcome back, {user?.name}</p>
-          </div>
+    <div className="min-h-screen bg-gray-900 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-white">
+            Dashboard - Welcome back, {user?.name}!
+          </h1>
           <div className="flex gap-4">
             {user?.role === 'admin' && (
               <Button
@@ -154,9 +170,7 @@ export default function DashboardPage() {
             </Button>
           </div>
         </div>
-      </div>
 
-      <div className="max-w-7xl mx-auto p-6">
         {error && (
           <div className="mb-6 bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-md">
             {error}
@@ -185,22 +199,42 @@ export default function DashboardPage() {
                 </Button>
               </div>
 
-              {/* Filters */}
-              <div className="flex gap-4 mb-6">
+              {/* Location Filters */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Floor
+                    Building
                   </label>
                   <select
-                    value={selectedFloor}
-                    onChange={(e) => setSelectedFloor(Number(e.target.value))}
-                    className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    value={selectedBuilding}
+                    onChange={(e) => setSelectedBuilding(e.target.value as 'main' | 'reading')}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    {floors.map(floor => (
-                      <option key={floor} value={floor}>Floor {floor}</option>
+                    {BUILDING_OPTIONS.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
                     ))}
                   </select>
                 </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    {selectedBuilding === 'main' ? 'Floor' : 'Hall'}
+                  </label>
+                  <select
+                    value={selectedFloorHall}
+                    onChange={(e) => setSelectedFloorHall(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {floorHallOptions.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">
                     Seat Type
@@ -208,12 +242,37 @@ export default function DashboardPage() {
                   <select
                     value={selectedSeatType}
                     onChange={(e) => setSelectedSeatType(e.target.value)}
-                    className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    {seatTypes.map(type => (
-                      <option key={type.value} value={type.value}>{type.label}</option>
+                    {seatTypeOptions.map(option => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
                     ))}
                   </select>
+                </div>
+              </div>
+
+              {/* Seat Legend */}
+              <div className="mb-6 p-4 bg-gray-700 rounded-lg">
+                <h3 className="text-sm font-medium text-gray-300 mb-3">Legend</h3>
+                <div className="flex flex-wrap gap-4">
+                  {Object.entries(SEAT_TYPES).map(([type, config]) => (
+                    <div key={type} className="flex items-center gap-2">
+                      <div className={`w-4 h-4 rounded ${config.color}`}></div>
+                      <span className="text-sm text-gray-300">
+                        {config.icon} {config.label}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded bg-gray-600"></div>
+                    <span className="text-sm text-gray-300">Occupied</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded bg-purple-600"></div>
+                    <span className="text-sm text-gray-300">Your Booking</span>
+                  </div>
                 </div>
               </div>
 
@@ -221,6 +280,10 @@ export default function DashboardPage() {
                 seats={filteredSeats} 
                 onBookSeat={handleBookSeat}
                 userBookings={myBookings}
+                selectedLocation={{
+                  building: selectedBuilding,
+                  floor_hall: selectedFloorHall
+                }}
               />
             </Card>
           </div>
@@ -233,16 +296,14 @@ export default function DashboardPage() {
               {myBookings.length === 0 ? (
                 <div className="text-center py-8">
                   <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
+                    <span className="text-2xl">📅</span>
                   </div>
-                  <p className="text-gray-400 mb-4">No active bookings</p>
-                  <p className="text-sm text-gray-500">Book a seat to get started</p>
+                  <h3 className="text-lg font-medium text-white mb-2">No active bookings</h3>
+                  <p className="text-gray-400">Book a seat to get started</p>
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {myBookings.map(booking => (
+                  {myBookings.map((booking) => (
                     <BookingCard
                       key={booking.id}
                       booking={booking}
@@ -259,23 +320,23 @@ export default function DashboardPage() {
               <div className="space-y-3">
                 <div className="flex justify-between">
                   <span className="text-gray-400">Total Seats</span>
-                  <span className="text-white">{seats.length}</span>
+                  <span className="text-white font-medium">290</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Available</span>
-                  <span className="text-green-400">
+                  <span className="text-gray-400">Available Now</span>
+                  <span className="text-green-400 font-medium">
                     {seats.filter(s => s.status === 'available').length}
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">Occupied</span>
-                  <span className="text-red-400">
-                    {seats.filter(s => s.status === 'occupied').length}
-                  </span>
+                  <span className="text-gray-400">Your Bookings</span>
+                  <span className="text-blue-400 font-medium">{myBookings.length}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">My Bookings</span>
-                  <span className="text-blue-400">{myBookings.length}</span>
+                  <span className="text-gray-400">Pending Confirmation</span>
+                  <span className="text-yellow-400 font-medium">
+                    {myBookings.filter(b => b.status === 'pending').length}
+                  </span>
                 </div>
               </div>
             </Card>
