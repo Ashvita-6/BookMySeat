@@ -1,143 +1,104 @@
+// library-seat-frontend/src/components/dashboard/SeatGrid.tsx
+'use client';
+
 import { useState } from 'react';
+import { Seat  } from '../../types/seat';
+import { Booking } from '../../types/booking';
 import Button from '../ui/Button';
 import Modal from '../ui/Modal';
-
-interface Seat {
-  id: number;
-  floor: number;
-  section: string;
-  seat_number: string;
-  seat_type: 'individual' | 'group' | 'quiet' | 'computer';
-  has_power: boolean;
-  has_monitor: boolean;
-  status: 'available' | 'occupied';
-  occupied_by?: number;
-  occupied_until?: string;
-  occupied_by_name?: string;
-}
-
-interface Booking {
-  id: number;
-  seat_id: number;
-  start_time: string;
-  end_time: string;
-  status: 'active' | 'completed' | 'cancelled';
-}
+import { 
+  getSeatDisplayName, 
+  SEAT_TYPES, 
+  BOOKING_STATUS,
+  getLocationDisplayName 
+} from '../../utils/libraryStructure';
+import { 
+  formatForDateTimeLocal, 
+  getNextQuarterHour, 
+  getMinDateTime,
+  validateBookingTime 
+} from '../../utils/validation';
 
 interface SeatGridProps {
   seats: Seat[];
   onBookSeat: (seatId: number, startTime: string, endTime: string) => Promise<void>;
   userBookings: Booking[];
+  selectedLocation: {
+    building: string;
+    floor_hall: string;
+  };
 }
 
-export default function SeatGrid({ seats, onBookSeat, userBookings }: SeatGridProps) {
+export default function SeatGrid({ seats, onBookSeat, userBookings, selectedLocation }: SeatGridProps) {
   const [selectedSeat, setSelectedSeat] = useState<Seat | null>(null);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [isBooking, setIsBooking] = useState(false);
+  const [validationError, setValidationError] = useState('');
 
   const getSeatTypeColor = (type: string) => {
-    switch (type) {
-      case 'individual': return 'bg-blue-600 hover:bg-blue-700';
-      case 'group': return 'bg-green-600 hover:bg-green-700';
-      case 'quiet': return 'bg-purple-600 hover:bg-purple-700';
-      case 'computer': return 'bg-orange-600 hover:bg-orange-700';
-      default: return 'bg-gray-600 hover:bg-gray-700';
-    }
+    return SEAT_TYPES[type as keyof typeof SEAT_TYPES]?.color || 'bg-gray-600';
   };
 
-  const getSeatTypeIcon = (type: string, hasMonitor: boolean) => {
-    if (type === 'computer' || hasMonitor) {
-      return (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-        </svg>
-      );
-    }
-    if (type === 'group') {
-      return (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-        </svg>
-      );
-    }
-    if (type === 'quiet') {
-      return (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      );
-    }
-    return (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-      </svg>
-    );
+  const getSeatTypeIcon = (type: string) => {
+    return SEAT_TYPES[type as keyof typeof SEAT_TYPES]?.icon || '💺';
   };
 
-const handleSeatClick = (seat: Seat) => {
-  if (seat.status === 'occupied') return;
-  setSelectedSeat(seat);
-  setShowBookingModal(true);
-  
-  // Set default times with proper current time handling
-  const now = new Date();
-  
-  // Round up to the next 15-minute interval for better UX
-  const minutes = now.getMinutes();
-  const roundedMinutes = Math.ceil(minutes / 15) * 15;
-  now.setMinutes(roundedMinutes, 0, 0);
-  
-  // If we've rolled over to the next hour, adjust accordingly
-  if (roundedMinutes >= 60) {
-    now.setHours(now.getHours() + 1);
-    now.setMinutes(0, 0, 0);
-  }
-  
-  // Set end time to 2 hours later
-  const later = new Date(now.getTime() + 2 * 60 * 60 * 1000);
-  
-  // Format for datetime-local input (YYYY-MM-DDTHH:MM)
-  const formatForDateTimeLocal = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  const handleSeatClick = (seat: Seat) => {
+    if (seat.status === 'occupied') return;
+    setSelectedSeat(seat);
+    setShowBookingModal(true);
+    setValidationError('');
+    
+    // Set default times with proper current time handling
+    const now = getNextQuarterHour();
+    const later = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 hours later
+    
+    setStartTime(formatForDateTimeLocal(now));
+    setEndTime(formatForDateTimeLocal(later));
   };
-  
-  setStartTime(formatForDateTimeLocal(now));
-  setEndTime(formatForDateTimeLocal(later));
-};
-
-
-
 
   const handleBookSeat = async () => {
     if (!selectedSeat || !startTime || !endTime) return;
     
+    // Validate booking times
+    const startDate = new Date(startTime);
+    const endDate = new Date(endTime);
+    const validation = validateBookingTime(startDate, endDate);
+    
+    if (!validation.isValid) {
+      setValidationError(validation.error || 'Invalid booking time');
+      return;
+    }
+    
     setIsBooking(true);
+    setValidationError('');
+    
     try {
       await onBookSeat(selectedSeat.id, startTime, endTime);
       setShowBookingModal(false);
       setSelectedSeat(null);
-    } catch (error) {
-      // Error is handled by parent component
+    } catch (error: any) {
+      setValidationError(error.message || 'Failed to book seat');
     } finally {
       setIsBooking(false);
     }
   };
 
-  const getMinDateTime = () => {
-  const now = new Date();
-  return now.toISOString().slice(0, 16);
-};
-
-
   const isUserBooking = (seatId: number) => {
-    return userBookings.some(booking => booking.seat_id === seatId);
+    return userBookings.some(booking => 
+      booking.seat_id === seatId && 
+      (['pending', 'confirmed', 'active'] as const).includes(booking.status as any)
+    );
+  };
+
+  const getUserBookingStatus = (seatId: number): string | undefined => {
+    const booking = userBookings.find(b => 
+      b.seat_id === seatId && 
+      (['pending', 'confirmed', 'active'] as const).includes(b.status as any)
+    );
+    return booking?.status;
   };
 
   // Group seats by section
@@ -149,157 +110,191 @@ const handleSeatClick = (seat: Seat) => {
     return acc;
   }, {} as Record<string, Seat[]>);
 
+  const locationDisplayName = getLocationDisplayName(selectedLocation.building, selectedLocation.floor_hall);
+
   return (
     <>
       <div className="space-y-6">
+        {/* Location Header */}
+        <div className="text-center mb-4">
+          <h3 className="text-lg font-medium text-white">{locationDisplayName}</h3>
+          <p className="text-sm text-gray-400">
+            {seats.length} seats • {seats.filter(s => s.status === 'available').length} available
+          </p>
+        </div>
+
         {Object.entries(seatsBySection).map(([section, sectionSeats]) => (
           <div key={section}>
-            <h3 className="text-lg font-medium text-white mb-3">Section {section}</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            <h4 className="text-md font-medium text-white mb-3">Section {section}</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
               {sectionSeats
                 .sort((a, b) => parseInt(a.seat_number) - parseInt(b.seat_number))
-                .map((seat) => (
-                  <button
-                    key={seat.id}
-                    onClick={() => handleSeatClick(seat)}
-                    disabled={seat.status === 'occupied'}
-                    className={`
-                      relative p-3 rounded-lg border-2 transition-all duration-200
-                      ${seat.status === 'available' 
-                        ? `${getSeatTypeColor(seat.seat_type)} border-transparent text-white` 
-                        : 'bg-gray-700 border-gray-600 text-gray-400 cursor-not-allowed'
-                      }
-                      ${isUserBooking(seat.id) ? 'ring-2 ring-yellow-400' : ''}
-                    `}
-                  >
-                    <div className="flex items-center justify-center mb-1">
-                      {getSeatTypeIcon(seat.seat_type, seat.has_monitor)}
-                    </div>
-                    <div className="text-xs font-medium">{seat.seat_number}</div>
-                    
-                    {/* Power indicator */}
-                    {seat.has_power && (
-                      <div className="absolute top-1 right-1">
-                        <svg className="w-3 h-3 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-                        </svg>
+                .map((seat) => {
+                  const isOccupied = seat.status === 'occupied';
+                  const isUserSeat = isUserBooking(seat.id);
+                  const userBookingStatus = getUserBookingStatus(seat.id);
+                  
+                  return (
+                    <button
+                      key={seat.id}
+                      onClick={() => handleSeatClick(seat)}
+                      disabled={isOccupied && !isUserSeat}
+                      className={`
+                        relative p-3 rounded-lg border-2 transition-all duration-200 min-h-[80px] flex flex-col items-center justify-center
+                        ${isOccupied && !isUserSeat
+                          ? 'bg-gray-700 border-gray-600 text-gray-400 cursor-not-allowed' 
+                          : isUserSeat
+                          ? 'bg-purple-600 border-purple-500 text-white shadow-lg'
+                          : `${getSeatTypeColor(seat.seat_type)} border-transparent text-white hover:scale-105 hover:shadow-lg cursor-pointer`
+                        }
+                      `}
+                      title={`${getSeatDisplayName(seat)} - ${SEAT_TYPES[seat.seat_type as keyof typeof SEAT_TYPES]?.label}`}
+                    >
+                      {/* Seat Icon */}
+                      <div className="text-lg mb-1">
+                        {getSeatTypeIcon(seat.seat_type)}
                       </div>
-                    )}
-                    
-                    {/* User booking indicator */}
-                    {isUserBooking(seat.id) && (
-                      <div className="absolute top-1 left-1">
-                        <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                      
+                      {/* Seat Number */}
+                      <span className="text-sm font-medium">
+                        {seat.seat_number}
+                      </span>
+                      
+                      {/* Features */}
+                      <div className="flex gap-1 mt-1">
+                        {seat.has_power && (
+                          <span className="text-xs" title="Power outlet">⚡</span>
+                        )}
+                        {seat.has_monitor && (
+                          <span className="text-xs" title="Monitor">🖥️</span>
+                        )}
                       </div>
-                    )}
-                    
-                    {/* Occupied indicator */}
-                    {seat.status === 'occupied' && (
-                      <div className="absolute inset-0 bg-red-900/50 rounded-lg flex items-center justify-center">
-                        <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                        </svg>
-                      </div>
-                    )}
-                  </button>
-                ))}
+
+                      {/* User booking status indicator */}
+                      {isUserSeat && userBookingStatus && (
+                        <div className="absolute -top-2 -right-2 w-6 h-6 bg-white rounded-full flex items-center justify-center">
+                          <span className="text-xs">
+                            {userBookingStatus === 'pending' ? '⏳' : 
+                             userBookingStatus === 'confirmed' ? '✅' : '🔵'}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Occupied indicator */}
+                      {isOccupied && !isUserSeat && (
+                        <div className="absolute inset-0 bg-gray-900/50 rounded-lg flex items-center justify-center">
+                          <span className="text-xs text-gray-300">Occupied</span>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
             </div>
           </div>
         ))}
-      </div>
 
-      {/* Legend */}
-      <div className="mt-6 p-4 bg-gray-700 rounded-lg">
-        <h4 className="text-sm font-medium text-white mb-3">Legend</h4>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-blue-600 rounded"></div>
-            <span className="text-gray-300">Individual</span>
+        {seats.length === 0 && (
+          <div className="text-center py-8">
+            <div className="text-4xl mb-4">🪑</div>
+            <h3 className="text-lg font-medium text-white mb-2">No seats found</h3>
+            <p className="text-gray-400">Try selecting a different location or seat type</p>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-green-600 rounded"></div>
-            <span className="text-gray-300">Group Study</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-purple-600 rounded"></div>
-            <span className="text-gray-300">Quiet Zone</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-orange-600 rounded"></div>
-            <span className="text-gray-300">Computer</span>
-          </div>
-        </div>
-        <div className="flex items-center gap-4 mt-2 text-xs">
-          <div className="flex items-center gap-2">
-            <svg className="w-3 h-3 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-            </svg>
-            <span className="text-gray-300">Has Power</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-yellow-400 rounded-full"></div>
-            <span className="text-gray-300">Your Booking</span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Booking Modal */}
-      <Modal 
-        isOpen={showBookingModal} 
-        onClose={() => setShowBookingModal(false)}
-        title="Book Seat"
+      <Modal
+        isOpen={showBookingModal}
+        onClose={() => {
+          setShowBookingModal(false);
+          setValidationError('');
+        }}
+        title={selectedSeat ? `Book ${getSeatDisplayName(selectedSeat)}` : 'Book Seat'}
       >
         {selectedSeat && (
           <div className="space-y-4">
-            <div className="bg-gray-700 p-4 rounded-lg">
-              <h3 className="font-medium text-white mb-2">
-                Seat {selectedSeat.section}{selectedSeat.seat_number}
-              </h3>
-              <div className="text-sm text-gray-300 space-y-1">
-                <p>Type: {selectedSeat.seat_type}</p>
-                <p>Floor: {selectedSeat.floor}</p>
-                {selectedSeat.has_power && <p>✓ Power outlet available</p>}
-                {selectedSeat.has_monitor && <p>✓ Monitor available</p>}
+            {/* Seat Info */}
+            <div className="p-4 bg-gray-700 rounded-lg">
+              <h4 className="font-medium text-white mb-2">
+                {getSeatDisplayName(selectedSeat)}
+              </h4>
+              <p className="text-sm text-gray-300 mb-2">
+                {getLocationDisplayName(selectedSeat.building, selectedSeat.floor_hall)} • Section {selectedSeat.section}
+              </p>
+              <div className="flex items-center gap-2">
+                <span className={`inline-block w-3 h-3 rounded-full ${getSeatTypeColor(selectedSeat.seat_type)}`}></span>
+                <span className="text-sm text-gray-300">
+                  {SEAT_TYPES[selectedSeat.seat_type as keyof typeof SEAT_TYPES]?.label}
+                </span>
+                {selectedSeat.has_power && <span className="text-sm">⚡</span>}
+                {selectedSeat.has_monitor && <span className="text-sm">🖥️</span>}
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                Start Time
-              </label>
-              <input
-  type="datetime-local"
-  value={startTime}
-  onChange={(e) => setStartTime(e.target.value)}
-  min={getMinDateTime()} // Prevents selecting past times
-  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-/>
-
+            {/* Important Notice */}
+            <div className="p-4 bg-yellow-900/50 border border-yellow-700 rounded-lg">
+              <div className="flex items-start gap-2">
+                <span className="text-yellow-400 text-lg">⚠️</span>
+                <div>
+                  <h5 className="text-yellow-300 font-medium">WiFi Confirmation Required</h5>
+                  <p className="text-yellow-200 text-sm">
+                    You must connect to the library WiFi within 15 minutes to confirm your booking, 
+                    or it will be automatically cancelled.
+                  </p>
+                </div>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">
-                End Time
-              </label>
-              <input
-  type="datetime-local"
-  value={endTime}
-  onChange={(e) => setEndTime(e.target.value)}
-  min={startTime} // Ensures end time is after start time
-  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-/>
+            {validationError && (
+              <div className="p-3 bg-red-900/50 border border-red-700 rounded text-red-300 text-sm">
+                {validationError}
+              </div>
+            )}
+
+            {/* Time Selection */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Start Time
+                </label>
+                <input
+                  type="datetime-local"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  min={getMinDateTime()}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  End Time
+                </label>
+                <input
+                  type="datetime-local"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  min={startTime}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
 
+            {/* Action Buttons */}
             <div className="flex gap-3 pt-4">
               <Button
                 onClick={handleBookSeat}
                 loading={isBooking}
                 className="flex-1 bg-blue-600 hover:bg-blue-700"
+                disabled={!startTime || !endTime}
               >
                 Book Seat
               </Button>
               <Button
-                onClick={() => setShowBookingModal(false)}
+                onClick={() => {
+                  setShowBookingModal(false);
+                  setValidationError('');
+                }}
                 variant="outline"
                 className="border-gray-600 text-gray-300 hover:bg-gray-700"
               >
