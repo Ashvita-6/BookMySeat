@@ -8,10 +8,10 @@ const router = express.Router();
 // Get all users (admin only)
 router.get('/', adminAuth, getAllUsers);
 
-// Update user role (admin only)
-router.put('/:id/role', adminAuth, updateUserRole);
+// Update user role (admin only) - Fixed parameter syntax for Express 5
+router.put('/:id(\\d+)/role', adminAuth, updateUserRole);
 
-// Delete user (admin only)
-router.delete('/:id', adminAuth, deleteUser);
+// Delete user (admin only) - Fixed parameter syntax
+router.delete('/:id(\\d+)', adminAuth, deleteUser);
 
 module.exports = router;

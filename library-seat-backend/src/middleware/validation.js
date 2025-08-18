@@ -46,6 +46,7 @@ const validateBooking = (req, res, next) => {
   next();
 };
 
+// Add missing validateLogin function
 const validateLogin = (req, res, next) => {
   const { email, password } = req.body;
 
@@ -188,7 +189,7 @@ const validateSeat = (req, res, next) => {
 
 module.exports = {
   validateBooking,
-  validateLogin,
+  validateLogin,  // Added this export
   validateBreak,
   validateUser,
   validateSeat
