@@ -1,12 +1,14 @@
+// library-seat-backend/src/models/User.js
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
   email: {
     type: String,
     required: true,
-    unique: true,
+    unique: true, // This automatically creates an index
     lowercase: true,
     trim: true
+    // REMOVED: index: true - Don't add this when unique is already true
   },
   password: {
     type: String,
@@ -20,9 +22,10 @@ const userSchema = new mongoose.Schema({
   student_id: {
     type: String,
     required: true,
-    unique: true,
+    unique: true, // This automatically creates an index
     uppercase: true,
     trim: true
+    // REMOVED: index: true - Don't add this when unique is already true
   },
   role: {
     type: String,
@@ -33,8 +36,8 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Index for better performance
-userSchema.index({ email: 1 });
-userSchema.index({ student_id: 1 });
+// REMOVED duplicate index creation
+// userSchema.index({ email: 1 }); // REMOVED - unique already creates this
+// userSchema.index({ student_id: 1 }); // REMOVED - unique already creates this
 
 module.exports = mongoose.model('User', userSchema);

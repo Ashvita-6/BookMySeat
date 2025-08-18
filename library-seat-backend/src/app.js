@@ -113,9 +113,9 @@ try {
   });
 }
 
-// Break routes - FIXED: Changed from 'breaks' to 'break'
+// Break routes - FIXED: Changed from 'break' to 'breaks'
 try {
-  const breakRoutes = require('./routes/break'); // Changed from './routes/breaks'
+  const breakRoutes = require('./routes/breaks'); // FIXED: Changed from './routes/break'
   if (breakRoutes) {
     app.use('/api/breaks', breakRoutes);
     console.log('✓ Break routes loaded');

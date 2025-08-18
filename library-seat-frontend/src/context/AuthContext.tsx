@@ -1,3 +1,4 @@
+// library-seat-frontend/src/context/AuthContext.tsx
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
@@ -50,22 +51,30 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const initAuth = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (token) {
-          // In a real app, you'd validate the token with your backend
-          const userData = localStorage.getItem('user');
-          if (userData) {
-            setUser(JSON.parse(userData));
+        // Only access localStorage on client side
+        if (typeof window !== 'undefined') {
+          const token = localStorage.getItem('token');
+          if (token) {
+            // In a real app, you'd validate the token with your backend
+            const userData = localStorage.getItem('user');
+            if (userData) {
+              setUser(JSON.parse(userData));
+            }
           }
         }
       } catch (error) {
         console.error('Failed to initialize auth:', error);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+        // Clear invalid data
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
+        }
       } finally {
         setIsLoading(false);
       }
@@ -93,8 +102,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const data = await response.json();
       
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      // Only access localStorage on client side
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+      }
       setUser(data.user);
     } catch (error) {
       throw error;
@@ -122,8 +134,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const responseData = await response.json();
       
-      localStorage.setItem('token', responseData.token);
-      localStorage.setItem('user', JSON.stringify(responseData.user));
+      // Only access localStorage on client side
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('token', responseData.token);
+        localStorage.setItem('user', JSON.stringify(responseData.user));
+      }
       setUser(responseData.user);
     } catch (error) {
       throw error;
@@ -132,16 +147,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const logout = (): void => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  const logout = () => {
     setUser(null);
+    // Only access localStorage on client side
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+    }
   };
 
-  const refreshProfile = async (): Promise<void> => {
+  const refreshProfile = async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error('No token found');
+      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      if (!token) return;
 
       const response = await fetch('http://localhost:5001/api/auth/profile', {
         headers: {
@@ -149,19 +167,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         },
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to refresh profile');
+      if (response.ok) {
+        const data = await response.json();
+        setUser(data.user);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('user', JSON.stringify(data.user));
+        }
+      } else {
+        logout();
       }
-
-      const data = await response.json();
-      localStorage.setItem('user', JSON.stringify(data.user));
-      setUser(data.user);
     } catch (error) {
       console.error('Failed to refresh profile:', error);
-      logout();
-      throw error;
     }
   };
+
+  // Prevent hydration mismatch by not rendering children until mounted
+  if (!mounted) {
+    return null;
+  }
 
   const value: AuthContextType = {
     user,

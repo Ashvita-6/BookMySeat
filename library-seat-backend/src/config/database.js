@@ -4,8 +4,9 @@ const mongoose = require('mongoose');
 const connectDB = async () => {
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/library-seat-booking', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
+      // Removed deprecated options
+      // useNewUrlParser: true,  // REMOVED - deprecated
+      // useUnifiedTopology: true, // REMOVED - deprecated
     });
 
     console.log(`MongoDB Connected: ${conn.connection.host}`);
