@@ -3,6 +3,7 @@ require('dotenv').config();
 
 const { app, server } = require('./src/app');
 const connectDB = require('./src/config/database');
+const { initBreakCleanupJob } = require('./src/jobs/breakCleanup');
 
 // Improved error handling
 process.on('uncaughtException', (error) => {
@@ -23,6 +24,9 @@ const startServer = async () => {
     await connectDB();
     console.log('✓ Database connected successfully');
 
+    // Initialize cleanup jobs after database connection
+    initBreakCleanupJob();
+
     const PORT = process.env.PORT || 5001;
     
     server.listen(PORT, (error) => {
@@ -36,14 +40,14 @@ const startServer = async () => {
       console.log(`   🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`   🔗 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
       console.log(`   📡 Socket.IO: Active`);
-      console.log(`   📶 WiFi Service: Active`);
       console.log(`   💾 Database: Connected`);
+      console.log(`   🕒 Break Cleanup: Active`);
       console.log('');
       console.log('🎯 API Endpoints:');
       console.log(`   GET  http://localhost:${PORT}/api/health`);
       console.log(`   GET  http://localhost:${PORT}/api/seats`);
       console.log(`   POST http://localhost:${PORT}/api/auth/login`);
-      console.log(`   GET  http://localhost:${PORT}/api/wifi/health`);
+      console.log(`   GET  http://localhost:${PORT}/api/breaks/available`);
       console.log('');
       console.log('Ready for connections! 🎉');
     });
@@ -79,69 +83,16 @@ const startServer = async () => {
     
     // Try to give more specific error messages
     if (error.message.includes('EADDRINUSE')) {
-      console.error('💡 Port is already in use. Try:');
-      console.error('   - Kill existing process: taskkill /f /im node.exe');
-      console.error('   - Use different port: set PORT=5002 && npm start');
+      console.error('💡 Port is already in use. Try stopping other processes or use a different port.');
     }
     
-    if (error.message.includes('MongoNetworkError')) {
-      console.error('💡 Database connection failed. Check:');
-      console.error('   - MongoDB connection string in .env file');
-      console.error('   - Network connectivity to MongoDB Atlas');
+    if (error.message.includes('ECONNREFUSED')) {
+      console.error('💡 Database connection refused. Make sure MongoDB is running.');
     }
     
     process.exit(1);
   }
 };
-
-// Auto-check for missing dependencies
-const checkDependencies = () => {
-  const requiredPackages = [
-    'express', 'mongoose', 'bcryptjs', 'jsonwebtoken', 
-    'cors', 'helmet', 'socket.io', 'dotenv'
-  ];
-  
-  const missing = [];
-  
-  requiredPackages.forEach(pkg => {
-    try {
-      require.resolve(pkg);
-    } catch (err) {
-      missing.push(pkg);
-    }
-  });
-  
-  if (missing.length > 0) {
-    console.error('❌ Missing dependencies:', missing.join(', '));
-    console.error('💡 Install with: npm install', missing.join(' '));
-    process.exit(1);
-  }
-};
-
-// Check environment variables
-const checkEnvironment = () => {
-  const required = ['MONGODB_URI', 'JWT_SECRET'];
-  const missing = required.filter(key => !process.env[key]);
-  
-  if (missing.length > 0) {
-    console.error('❌ Missing environment variables:', missing.join(', '));
-    console.error('💡 Create .env file with:');
-    missing.forEach(key => {
-      if (key === 'MONGODB_URI') {
-        console.error(`   ${key}=mongodb://localhost:27017/bookmyseat`);
-      } else if (key === 'JWT_SECRET') {
-        console.error(`   ${key}=your-super-secret-jwt-key-here`);
-      }
-    });
-    process.exit(1);
-  }
-};
-
-// Run startup checks
-console.log('🔍 Running startup checks...');
-checkDependencies();
-checkEnvironment();
-console.log('✓ All checks passed\n');
 
 // Start the server
 startServer();

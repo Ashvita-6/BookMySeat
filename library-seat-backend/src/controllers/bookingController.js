@@ -2,105 +2,83 @@
 const Booking = require('../models/Booking');
 const Seat = require('../models/Seat');
 const User = require('../models/User');
-const wifiConfirmationService = require('../services/wifiConfirmationService');
 
 const createBooking = async (req, res) => {
   try {
     const { seat_id, start_time, end_time } = req.body;
     const user_id = req.user.id;
 
-    console.log('Booking request data:', { seat_id, start_time, end_time, user_id });
-
-    // Validate and parse times
-    const startDate = new Date(start_time);
-    const endDate = new Date(end_time);
-    const now = new Date();
-
-    // Additional time validations
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-      return res.status(400).json({ error: 'Invalid date format' });
-    }
-
-    if (startDate <= now) {
-      return res.status(400).json({ error: 'Start time must be in the future' });
-    }
-
-    if (endDate <= startDate) {
-      return res.status(400).json({ error: 'End time must be after start time' });
-    }
-
-    // Check maximum booking duration (4 hours)
-    const durationHours = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
-    if (durationHours > 4) {
-      return res.status(400).json({ error: 'Maximum booking duration is 4 hours' });
-    }
-
-    // Check minimum booking duration (30 minutes)
-    if (durationHours < 0.5) {
-      return res.status(400).json({ error: 'Minimum booking duration is 30 minutes' });
-    }
-
-    // Check if seat exists and is active
+    // Check if seat exists and is available
     const seat = await Seat.findById(seat_id);
-    if (!seat || !seat.is_active) {
-      return res.status(404).json({ error: 'Seat not found or inactive' });
+    if (!seat) {
+      return res.status(404).json({ error: 'Seat not found' });
     }
 
-    console.log('Seat found:', seat);
+    if (!seat.is_active) {
+      return res.status(400).json({ error: 'Seat is not available for booking' });
+    }
 
-    // Check if seat is available during the requested time
-    const conflictingBooking = await Booking.findOne({
+    const startTime = new Date(start_time);
+    const endTime = new Date(end_time);
+
+    // Check for overlapping bookings
+    const overlappingBooking = await Booking.findOne({
       seat_id,
-      status: { $in: ['pending', 'confirmed', 'active'] },
+      status: 'active',
       $or: [
         {
-          start_time: { $lt: endDate },
-          end_time: { $gt: startDate }
+          start_time: { $lt: endTime },
+          end_time: { $gt: startTime }
         }
       ]
     });
 
-    if (conflictingBooking) {
+    if (overlappingBooking) {
       return res.status(400).json({ 
-        error: 'Seat is not available during the requested time',
-        conflicting_booking: {
-          start: conflictingBooking.start_time,
-          end: conflictingBooking.end_time,
-          status: conflictingBooking.status
-        }
+        error: 'Seat is already booked for the selected time period' 
       });
     }
 
-    // Check user's active bookings limit (including pending ones)
-    const userActiveBookings = await Booking.countDocuments({
+    // Check if user has overlapping bookings
+    const userOverlappingBooking = await Booking.findOne({
       user_id,
-      status: { $in: ['pending', 'confirmed', 'active'] },
-      end_time: { $gt: now }
+      status: 'active',
+      $or: [
+        {
+          start_time: { $lt: endTime },
+          end_time: { $gt: startTime }
+        }
+      ]
     });
 
-    if (userActiveBookings >= 2) {
-      return res.status(400).json({ error: 'Maximum active bookings limit (2) reached' });
+    if (userOverlappingBooking) {
+      return res.status(400).json({ 
+        error: 'You already have a booking during this time period' 
+      });
     }
 
-    // Create booking with pending status
+    // Create the booking - now active immediately (no WiFi verification)
     const booking = new Booking({
       user_id,
       seat_id,
-      start_time: startDate,
-      end_time: endDate,
-      status: 'pending' // Start as pending, requiring WiFi confirmation
+      start_time: startTime,
+      end_time: endTime,
+      status: 'active'
     });
 
-    await booking.save();
-    console.log('Booking created with pending status:', booking);
+    const savedBooking = await booking.save();
 
-    // Schedule auto-cancellation after 15 minutes
-    await wifiConfirmationService.scheduleAutoCancellation(booking._id);
+    // Update seat status
+    await Seat.findByIdAndUpdate(seat_id, {
+      status: 'occupied',
+      occupied_by: user_id,
+      occupied_until: endTime
+    });
 
-    // Get complete booking info with seat and user details
-    const completeBooking = await Booking.findById(booking._id)
-      .populate('seat_id', 'building floor_hall section seat_number seat_type')
-      .populate('user_id', 'name');
+    // Populate the booking for response
+    const completeBooking = await Booking.findById(savedBooking._id)
+      .populate('user_id', 'name student_id email')
+      .populate('seat_id', 'building floor_hall section seat_number seat_type');
 
     const response = {
       id: completeBooking._id,
@@ -109,7 +87,6 @@ const createBooking = async (req, res) => {
       start_time: completeBooking.start_time,
       end_time: completeBooking.end_time,
       status: completeBooking.status,
-      confirmation_deadline: completeBooking.confirmation_deadline,
       building: completeBooking.seat_id.building,
       floor_hall: completeBooking.seat_id.floor_hall,
       section: completeBooking.seat_id.section,
@@ -121,10 +98,8 @@ const createBooking = async (req, res) => {
     };
 
     res.status(201).json({
-      message: 'Booking created successfully. Please connect to library WiFi within 15 minutes to confirm.',
-      booking: response,
-      confirmation_required: true,
-      confirmation_deadline: completeBooking.confirmation_deadline
+      message: 'Booking created successfully',
+      booking: response
     });
 
     // Emit socket event for real-time updates
@@ -177,8 +152,6 @@ const getUserBookings = async (req, res) => {
       start_time: booking.start_time,
       end_time: booking.end_time,
       status: booking.status,
-      confirmation_deadline: booking.confirmation_deadline,
-      confirmed_at: booking.confirmed_at,
       building: booking.seat_id.building,
       floor_hall: booking.seat_id.floor_hall,
       section: booking.seat_id.section,
@@ -210,33 +183,51 @@ const cancelBooking = async (req, res) => {
       return res.status(404).json({ error: 'Booking not found' });
     }
 
-    if (!['pending', 'confirmed', 'active'].includes(booking.status)) {
-      return res.status(400).json({ error: 'Booking cannot be cancelled' });
+    if (booking.status !== 'active') {
+      return res.status(400).json({ error: 'Only active bookings can be cancelled' });
     }
 
     // Update booking status
     booking.status = 'cancelled';
     await booking.save();
 
-    res.json({
-      message: 'Booking cancelled successfully',
-      booking: {
-        id: booking._id,
-        user_id: booking.user_id,
-        seat_id: booking.seat_id,
-        start_time: booking.start_time,
-        end_time: booking.end_time,
-        status: booking.status,
-        created_at: booking.createdAt,
-        updated_at: booking.updatedAt
-      }
+    // Update seat status
+    await Seat.findByIdAndUpdate(booking.seat_id, {
+      status: 'available',
+      occupied_by: null,
+      occupied_until: null
     });
 
-    // Emit socket event for real-time updates
+    // Get populated booking for response
+    const populatedBooking = await Booking.findById(booking._id)
+      .populate('seat_id', 'building floor_hall section seat_number seat_type');
+
+    const response = {
+      id: populatedBooking._id,
+      user_id: populatedBooking.user_id,
+      seat_id: populatedBooking.seat_id._id,
+      start_time: populatedBooking.start_time,
+      end_time: populatedBooking.end_time,
+      status: populatedBooking.status,
+      building: populatedBooking.seat_id.building,
+      floor_hall: populatedBooking.seat_id.floor_hall,
+      section: populatedBooking.seat_id.section,
+      seat_number: populatedBooking.seat_id.seat_number,
+      seat_type: populatedBooking.seat_id.seat_type,
+      created_at: populatedBooking.createdAt,
+      updated_at: populatedBooking.updatedAt
+    };
+
+    res.json({ 
+      message: 'Booking cancelled successfully',
+      booking: response 
+    });
+
+    // Emit socket event
     if (req.app.locals.io) {
       req.app.locals.io.emit('seatFreed', {
         seat_id: booking.seat_id,
-        booking_id: id
+        booking_id: booking._id
       });
     }
 
@@ -255,8 +246,8 @@ const getAllBookings = async (req, res) => {
     if (seat_id) query.seat_id = seat_id;
 
     const bookings = await Booking.find(query)
+      .populate('user_id', 'name student_id email')
       .populate('seat_id', 'building floor_hall section seat_number seat_type')
-      .populate('user_id', 'name student_id')
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(offset));
@@ -264,19 +255,18 @@ const getAllBookings = async (req, res) => {
     const formattedBookings = bookings.map(booking => ({
       id: booking._id,
       user_id: booking.user_id._id,
+      user_name: booking.user_id.name,
+      user_student_id: booking.user_id.student_id,
+      user_email: booking.user_id.email,
       seat_id: booking.seat_id._id,
       start_time: booking.start_time,
       end_time: booking.end_time,
       status: booking.status,
-      confirmation_deadline: booking.confirmation_deadline,
-      confirmed_at: booking.confirmed_at,
       building: booking.seat_id.building,
       floor_hall: booking.seat_id.floor_hall,
       section: booking.seat_id.section,
       seat_number: booking.seat_id.seat_number,
       seat_type: booking.seat_id.seat_type,
-      user_name: booking.user_id.name,
-      student_id: booking.user_id.student_id,
       created_at: booking.createdAt,
       updated_at: booking.updatedAt
     }));
@@ -288,4 +278,9 @@ const getAllBookings = async (req, res) => {
   }
 };
 
-module.exports = { createBooking, getUserBookings, cancelBooking, getAllBookings };
+module.exports = {
+  createBooking,
+  getUserBookings,
+  cancelBooking,
+  getAllBookings
+};

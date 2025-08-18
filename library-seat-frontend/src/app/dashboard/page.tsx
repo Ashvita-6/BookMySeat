@@ -10,8 +10,10 @@ import Card from '../../components/ui/Card';
 import SeatGrid from '../../components/dashboard/SeatGrid';
 import BookingCard from '../../components/dashboard/BookingCard';
 import { api } from '../../services/api';
-import { Seat  } from '../../types/seat';
+import { Seat } from '../../types/seat';
 import { Booking } from '../../types/booking';
+import { CreateBreakData } from '../../types/break';
+import { breakService } from '../../services/breaks';
 import { 
   BUILDING_OPTIONS, 
   getFloorHallOptions, 
@@ -59,9 +61,9 @@ export default function DashboardPage() {
       
       setSeats(seatsResponse.seats);
       
-      // Filter active bookings (including pending ones)
+      // Filter active bookings
       const activeBookings = bookingsResponse.bookings.filter((booking: Booking) => 
-        ['pending', 'confirmed', 'active'].includes(booking.status)
+        booking.status === 'active'
       );
       setMyBookings(activeBookings);
     } catch (err: any) {
@@ -92,6 +94,16 @@ export default function DashboardPage() {
       await loadData();
     } catch (err: any) {
       setError(err.message || 'Failed to cancel booking');
+    }
+  };
+
+  const handleCreateBreak = async (breakData: CreateBreakData) => {
+    try {
+      await breakService.createBreak(breakData);
+      // Optionally reload data to reflect changes
+      await loadData();
+    } catch (err: any) {
+      setError(err.message || 'Failed to create break');
     }
   };
 
@@ -151,7 +163,20 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-white">
             Dashboard - Welcome back, {user?.name}!
           </h1>
-          <div className="flex gap-4">
+          <div className="flex gap-3">
+            <Button
+              onClick={() => router.push('/breaks')}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              Available Breaks
+            </Button>
+            <Button
+              onClick={() => router.push('/my-breaks')}
+              variant="outline"
+              className="border-blue-600 text-blue-400 hover:bg-blue-900"
+            >
+              My Breaks
+            </Button>
             {user?.role === 'admin' && (
               <Button
                 onClick={() => router.push('/admin')}
@@ -161,187 +186,147 @@ export default function DashboardPage() {
                 Admin Panel
               </Button>
             )}
-            <Button
-              onClick={() => router.push('/')}
-              variant="outline"
-              className="border-gray-600 text-gray-300 hover:bg-gray-700"
-            >
-              Home
-            </Button>
           </div>
         </div>
 
+        {/* Error Display */}
         {error && (
-          <div className="mb-6 bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-md">
-            {error}
-            <button
+          <Card className="bg-red-900 border-red-700 mb-6">
+            <p className="text-red-300">{error}</p>
+            <Button
               onClick={() => setError('')}
-              className="ml-4 text-red-200 hover:text-white"
+              className="mt-2 bg-red-700 hover:bg-red-600 text-sm"
             >
-              ×
-            </button>
-          </div>
+              Dismiss
+            </Button>
+          </Card>
         )}
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Seat Selection */}
-          <div className="lg:col-span-2">
-            <Card className="bg-gray-800 border-gray-700">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold text-white">Available Seats</h2>
-                <Button
-                  onClick={loadData}
-                  size="sm"
-                  variant="outline"
-                  className="border-gray-600 text-gray-300 hover:bg-gray-700"
-                >
-                  Refresh
-                </Button>
-              </div>
+        {/* My Active Bookings */}
+        {myBookings.length > 0 && (
+          <Card className="bg-gray-800 border-gray-700 mb-6">
+            <h2 className="text-xl font-semibold text-white mb-4">My Active Bookings</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {myBookings.map((booking) => (
+                <BookingCard
+                  key={booking.id}
+                  booking={booking}
+                  onCancel={handleCancelBooking}
+                  onCreateBreak={handleCreateBreak}
+                />
+              ))}
+            </div>
+          </Card>
+        )}
 
-              {/* Location Filters */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Building
-                  </label>
-                  <select
-                    value={selectedBuilding}
-                    onChange={(e) => setSelectedBuilding(e.target.value as 'main' | 'reading')}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {BUILDING_OPTIONS.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    {selectedBuilding === 'main' ? 'Floor' : 'Hall'}
-                  </label>
-                  <select
-                    value={selectedFloorHall}
-                    onChange={(e) => setSelectedFloorHall(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {floorHallOptions.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+        {/* Break Information Section */}
+        <Card className="bg-gray-800 border-gray-700 mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-white">Break System</h2>
+            <div className="flex gap-2">
+              <Button
+                onClick={() => router.push('/breaks')}
+                className="bg-green-600 hover:bg-green-700 text-sm"
+              >
+                Browse Breaks
+              </Button>
+              <Button
+                onClick={() => router.push('/my-breaks')}
+                variant="outline"
+                className="border-blue-600 text-blue-400 hover:bg-blue-900 text-sm"
+              >
+                Manage My Breaks
+              </Button>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+            <div className="bg-gray-700 p-4 rounded-lg">
+              <h3 className="font-medium text-white mb-2">🎯 Create a Break</h3>
+              <ul className="text-gray-300 space-y-1">
+                <li>• Going on a break? Let others use your seat</li>
+                <li>• Duration: 30 minutes to 5 hours</li>
+                <li>• Must be during your active booking</li>
+                <li>• Add notes for break takers</li>
+              </ul>
+            </div>
+            
+            <div className="bg-gray-700 p-4 rounded-lg">
+              <h3 className="font-medium text-white mb-2">📍 Take a Break</h3>
+              <ul className="text-gray-300 space-y-1">
+                <li>• Find available breaks from other users</li>
+                <li>• Filter by location and duration</li>
+                <li>• No WiFi confirmation needed</li>
+                <li>• Instant booking activation</li>
+              </ul>
+            </div>
+          </div>
+        </Card>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Seat Type
-                  </label>
-                  <select
-                    value={selectedSeatType}
-                    onChange={(e) => setSelectedSeatType(e.target.value)}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {seatTypeOptions.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+        {/* Location and Seat Type Filters */}
+        <Card className="bg-gray-800 border-gray-700 mb-6">
+          <h2 className="text-xl font-semibold text-white mb-4">Book a Seat</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-gray-300 text-sm font-medium mb-2">
+                Building
+              </label>
+              <select
+                value={selectedBuilding}
+                onChange={(e) => setSelectedBuilding(e.target.value as 'main' | 'reading')}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {BUILDING_OPTIONS.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-              {/* Seat Legend */}
-              <div className="mb-6 p-4 bg-gray-700 rounded-lg">
-                <h3 className="text-sm font-medium text-gray-300 mb-3">Legend</h3>
-                <div className="flex flex-wrap gap-4">
-                  {Object.entries(SEAT_TYPES).map(([type, config]) => (
-                    <div key={type} className="flex items-center gap-2">
-                      <div className={`w-4 h-4 rounded ${config.color}`}></div>
-                      <span className="text-sm text-gray-300">
-                        {config.icon} {config.label}
-                      </span>
-                    </div>
-                  ))}
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-gray-600"></div>
-                    <span className="text-sm text-gray-300">Occupied</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-purple-600"></div>
-                    <span className="text-sm text-gray-300">Your Booking</span>
-                  </div>
-                </div>
-              </div>
+            <div>
+              <label className="block text-gray-300 text-sm font-medium mb-2">
+                Floor/Hall
+              </label>
+              <select
+                value={selectedFloorHall}
+                onChange={(e) => setSelectedFloorHall(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {floorHallOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-              <SeatGrid 
-                seats={filteredSeats} 
-                onBookSeat={handleBookSeat}
-                userBookings={myBookings}
-                selectedLocation={{
-                  building: selectedBuilding,
-                  floor_hall: selectedFloorHall
-                }}
-              />
-            </Card>
+            <div>
+              <label className="block text-gray-300 text-sm font-medium mb-2">
+                Seat Type
+              </label>
+              <select
+                value={selectedSeatType}
+                onChange={(e) => setSelectedSeatType(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                {seatTypeOptions.map(option => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          {/* My Bookings */}
-          <div>
-            <Card className="bg-gray-800 border-gray-700">
-              <h2 className="text-xl font-semibold text-white mb-6">My Active Bookings</h2>
-              
-              {myBookings.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <span className="text-2xl">📅</span>
-                  </div>
-                  <h3 className="text-lg font-medium text-white mb-2">No active bookings</h3>
-                  <p className="text-gray-400">Book a seat to get started</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {myBookings.map((booking) => (
-                    <BookingCard
-                      key={booking.id}
-                      booking={booking}
-                      onCancel={handleCancelBooking}
-                    />
-                  ))}
-                </div>
-              )}
-            </Card>
-
-            {/* Quick Stats */}
-            <Card className="bg-gray-800 border-gray-700 mt-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Quick Stats</h3>
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Total Seats</span>
-                  <span className="text-white font-medium">290</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Available Now</span>
-                  <span className="text-green-400 font-medium">
-                    {seats.filter(s => s.status === 'available').length}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Your Bookings</span>
-                  <span className="text-blue-400 font-medium">{myBookings.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-400">Pending Confirmation</span>
-                  <span className="text-yellow-400 font-medium">
-                    {myBookings.filter(b => b.status === 'pending').length}
-                  </span>
-                </div>
-              </div>
-            </Card>
-          </div>
-        </div>
+          {/* Seat Grid */}
+          <SeatGrid
+            seats={filteredSeats}
+            onBookSeat={handleBookSeat}
+            selectedBuilding={selectedBuilding}
+            selectedFloorHall={selectedFloorHall}
+          />
+        </Card>
       </div>
     </div>
   );

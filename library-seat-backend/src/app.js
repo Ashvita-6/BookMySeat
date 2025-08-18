@@ -62,13 +62,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Import and use routes with error handling
+// Import and use routes with error handling (WiFi route removed)
 const routes = [
   { path: '/api/auth', file: './routes/auth' },
   { path: '/api/seats', file: './routes/seats' },
   { path: '/api/bookings', file: './routes/bookings' },
-  { path: '/api/users', file: './routes/users' },
-  { path: '/api/wifi', file: './routes/wifi' }
+  { path: '/api/breaks', file: './routes/breaks' },
+  { path: '/api/users', file: './routes/users' }
 ];
 
 routes.forEach(({ path, file }) => {
@@ -94,62 +94,54 @@ routes.forEach(({ path, file }) => {
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-  console.log(`📱 User connected: ${socket.id}`);
-  
-  socket.on('disconnect', () => {
-    console.log(`📱 User disconnected: ${socket.id}`);
-  });
-  
-  // Handle seat selection
-  socket.on('selectSeat', (data) => {
-    socket.broadcast.emit('seatSelected', {
-      seatId: data.seatId,
-      userId: data.userId
-    });
+  console.log(`🔌 User connected: ${socket.id}`);
+
+  // Handle seat-related events
+  socket.on('joinSeat', (seatId) => {
+    socket.join(`seat_${seatId}`);
+    console.log(`User ${socket.id} joined seat ${seatId}`);
   });
 
-  // Handle booking updates
-  socket.on('bookingUpdate', (data) => {
-    socket.broadcast.emit('bookingChanged', data);
+  socket.on('leaveSeat', (seatId) => {
+    socket.leave(`seat_${seatId}`);
+    console.log(`User ${socket.id} left seat ${seatId}`);
+  });
+
+  // Handle break-related events
+  socket.on('joinBreaks', () => {
+    socket.join('breaks');
+    console.log(`User ${socket.id} joined breaks channel`);
+  });
+
+  socket.on('leaveBreaks', () => {
+    socket.leave('breaks');
+    console.log(`User ${socket.id} left breaks channel`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`🔌 User disconnected: ${socket.id}`);
+  });
+
+  socket.on('error', (error) => {
+    console.error(`Socket error for ${socket.id}:`, error);
   });
 });
 
-// Initialize WiFi confirmation service with error handling
-try {
-  const wifiConfirmationService = require('./services/wifiConfirmationService');
-  wifiConfirmationService.initialize(io);
-  console.log('✓ WiFi confirmation service initialized');
-} catch (error) {
-  console.warn('⚠️ WiFi confirmation service not available:', error.message);
-}
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Server error:', err);
-  
-  // Handle specific error types
-  if (err.type === 'entity.parse.failed') {
-    return res.status(400).json({ error: 'Invalid JSON' });
-  }
-  
-  if (err.name === 'ValidationError') {
-    return res.status(400).json({ 
-      error: 'Validation error',
-      details: Object.values(err.errors).map(e => e.message)
-    });
-  }
-  
+// Global error handler
+app.use((error, req, res, next) => {
+  console.error('Global error handler:', error);
   res.status(500).json({ 
-    error: process.env.NODE_ENV === 'production' 
-      ? 'Internal server error' 
-      : err.message 
+    error: 'Internal server error',
+    message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
   });
 });
 
 // 404 handler
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
+app.use('*', (req, res) => {
+  res.status(404).json({ 
+    error: 'Route not found',
+    path: req.originalUrl 
+  });
 });
 
-// Export both app and server so server.js can use them
 module.exports = { app, server };

@@ -1,13 +1,11 @@
+// library-seat-frontend/src/types/booking.ts
 export interface Booking {
   id: number;
   user_id: number;
   seat_id: number;
   start_time: string;
   end_time: string;
-  status: 'pending' | 'confirmed' | 'active' | 'completed' | 'cancelled' | 'auto_cancelled';
-  confirmation_deadline?: string;
-  confirmed_at?: string;
-  wifi_mac_address?: string;
+  status: 'active' | 'completed' | 'cancelled';
   building: 'main' | 'reading';
   floor_hall: string;
   section: string;
@@ -24,25 +22,21 @@ export interface CreateBookingData {
   end_time: string;
 }
 
-export interface PendingConfirmation {
-  id: number;
-  user: {
-    id: number;
-    name: string;
-    student_id: string;
-    email: string;
-  };
-  seat: {
-    id: number;
-    building: string;
-    floor_hall: string;
-    section: string;
-    seat_number: string;
-    seat_type: string;
-  };
-  start_time: string;
-  end_time: string;
-  confirmation_deadline: string;
-  time_remaining: number;
-  created_at: string;
-}
+// Booking status constants (simplified without WiFi verification)
+export const BOOKING_STATUS = {
+  active: { 
+    label: 'Active', 
+    color: 'bg-green-500',
+    description: 'Currently in use'
+  },
+  completed: { 
+    label: 'Completed', 
+    color: 'bg-gray-500',
+    description: 'Booking completed'
+  },
+  cancelled: { 
+    label: 'Cancelled', 
+    color: 'bg-red-500',
+    description: 'Manually cancelled'
+  }
+} as const;

@@ -1,29 +1,19 @@
-import { AuthResponse, LoginCredentials, RegisterData, User } from '@/types/auth';
-import { Seat, SeatFilter } from '@/types/seat';
-import { Booking, CreateBookingData } from '@/types/booking';
-import { UpdateUserRole } from '@/types/user';
+// library-seat-frontend/src/services/api.ts
+import { Seat, SeatFilter } from '../types/seat';
+import { Booking, CreateBookingData } from '../types/booking';
+import { Break, CreateBreakData, BreakFilters, BreakBooking } from '../types/break';
+import { User } from '../types';
 
-const API_BASE_URL = 'http://localhost:5001/api';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
 
-class ApiError extends Error {
-  status: number;
-  
-  constructor(message: string, status: number) {
-    super(message);
-    this.status = status;
-    this.name = 'ApiError';
-  }
-}
-
+// Helper function to get auth token
 const getAuthToken = (): string | null => {
   if (typeof window === 'undefined') return null;
   return localStorage.getItem('token');
 };
 
-const apiRequest = async <T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> => {
+// Generic API request function
+const apiRequest = async (endpoint: string, options: RequestInit = {}): Promise<any> => {
   const token = getAuthToken();
   
   const config: RequestInit = {
@@ -38,26 +28,26 @@ const apiRequest = async <T>(
   const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
   
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ error: 'Network error' }));
-    throw new ApiError(errorData.error || 'Something went wrong', response.status);
+    const error = await response.json().catch(() => ({ message: 'Request failed' }));
+    throw new Error(error.message || `HTTP ${response.status}`);
   }
 
   return response.json();
 };
 
 export const api = {
-  // Auth endpoints
+  // Authentication endpoints
   auth: {
-    login: (credentials: LoginCredentials): Promise<AuthResponse> =>
+    login: (credentials: { email: string; password: string }): Promise<{ token: string; user: User }> =>
       apiRequest('/auth/login', {
         method: 'POST',
         body: JSON.stringify(credentials),
       }),
     
-    register: (data: RegisterData): Promise<AuthResponse> =>
+    register: (userData: { name: string; email: string; student_id: string; password: string }): Promise<{ token: string; user: User }> =>
       apiRequest('/auth/register', {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify(userData),
       }),
     
     getProfile: (): Promise<{ user: User }> =>
@@ -133,6 +123,50 @@ export const api = {
       }),
   },
 
+  // Break endpoints
+  breaks: {
+    // Create a new break
+    create: (breakData: CreateBreakData): Promise<{ break: Break; message: string }> =>
+      apiRequest('/breaks', {
+        method: 'POST',
+        body: JSON.stringify(breakData),
+      }),
+
+    // Get available breaks for booking
+    getAvailable: (filters?: BreakFilters): Promise<{ breaks: Break[] }> => {
+      const params = new URLSearchParams();
+      if (filters) {
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value !== undefined) {
+            params.append(key, value.toString());
+          }
+        });
+      }
+      const queryString = params.toString();
+      return apiRequest(`/breaks/available${queryString ? `?${queryString}` : ''}`);
+    },
+
+    // Get user's breaks (both created and taken)
+    getMyBreaks: (type?: 'created' | 'taken' | 'all'): Promise<{ breaks: Break[] }> => {
+      const params = new URLSearchParams();
+      if (type) params.append('type', type);
+      const queryString = params.toString();
+      return apiRequest(`/breaks/my-breaks${queryString ? `?${queryString}` : ''}`);
+    },
+
+    // Book a break (take someone's break)
+    book: (id: number): Promise<{ booking: BreakBooking; message: string }> =>
+      apiRequest(`/breaks/${id}/book`, {
+        method: 'POST',
+      }),
+
+    // Cancel a break
+    cancel: (id: number): Promise<{ break: Break; message: string }> =>
+      apiRequest(`/breaks/${id}/cancel`, {
+        method: 'PUT',
+      }),
+  },
+
   // Users endpoints (admin only)
   users: {
     getAll: (role?: string, limit?: number, offset?: number): Promise<{ users: User[] }> => {
@@ -144,13 +178,10 @@ export const api = {
       return apiRequest(`/users${queryString ? `?${queryString}` : ''}`);
     },
     
-    getById: (id: number): Promise<{ user: User }> =>
-      apiRequest(`/users/${id}`),
-    
-    updateRole: (id: number, data: UpdateUserRole): Promise<{ user: User }> =>
+    updateRole: (id: number, role: string): Promise<{ user: User }> =>
       apiRequest(`/users/${id}/role`, {
         method: 'PUT',
-        body: JSON.stringify(data),
+        body: JSON.stringify({ role }),
       }),
     
     delete: (id: number): Promise<{ message: string }> =>

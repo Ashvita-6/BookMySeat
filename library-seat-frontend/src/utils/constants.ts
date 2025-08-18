@@ -1,3 +1,4 @@
+// library-seat-frontend/src/utils/constants.ts
 export const API_ENDPOINTS = {
   AUTH: {
     LOGIN: '/auth/login',
@@ -17,6 +18,13 @@ export const API_ENDPOINTS = {
     ALL: '/bookings',
     CANCEL: (id: number) => `/bookings/${id}/cancel`,
   },
+  BREAKS: {
+    CREATE: '/breaks',
+    AVAILABLE: '/breaks/available',
+    MY_BREAKS: '/breaks/my-breaks',
+    BOOK: (id: number) => `/breaks/${id}/book`,
+    CANCEL: (id: number) => `/breaks/${id}/cancel`,
+  },
   USERS: {
     ALL: '/users',
     UPDATE_ROLE: (id: number) => `/users/${id}/role`,
@@ -32,12 +40,47 @@ export const SEAT_TYPES = {
 } as const;
 
 export const BOOKING_STATUS = {
-  active: { label: 'Active', color: 'bg-green-500' },
-  completed: { label: 'Completed', color: 'bg-gray-500' },
+  pending: { 
+    label: 'Pending WiFi Confirmation', 
+    color: 'bg-yellow-500',
+    description: 'Connect to library WiFi to confirm'
+  },
+  confirmed: { 
+    label: 'Confirmed', 
+    color: 'bg-blue-500',
+    description: 'Booking confirmed via WiFi'
+  },
+  active: { 
+    label: 'Active', 
+    color: 'bg-green-500',
+    description: 'Currently in use'
+  },
+  completed: { 
+    label: 'Completed', 
+    color: 'bg-gray-500',
+    description: 'Booking completed'
+  },
+  cancelled: { 
+    label: 'Cancelled', 
+    color: 'bg-red-500',
+    description: 'Manually cancelled'
+  },
+  auto_cancelled: { 
+    label: 'Auto-Cancelled', 
+    color: 'bg-red-600',
+    description: 'Cancelled due to no WiFi confirmation'
+  }
+} as const;
+
+export const BREAK_STATUS = {
+  active: { label: 'Available', color: 'bg-green-500' },
+  taken: { label: 'Taken', color: 'bg-blue-500' },
+  expired: { label: 'Expired', color: 'bg-gray-500' },
   cancelled: { label: 'Cancelled', color: 'bg-red-500' },
 } as const;
 
 export const SOCKET_EVENTS = {
+  // Existing seat events
   JOIN_SEAT: 'joinSeat',
   LEAVE_SEAT: 'leaveSeat',
   GET_SEAT_STATUS: 'getSeatStatus',
@@ -46,6 +89,17 @@ export const SOCKET_EVENTS = {
   SEAT_UPDATE: 'seatUpdate',
   SEAT_STATUS: 'seatStatus',
   SEAT_LIST_UPDATE: 'seatListUpdate',
+  
+  // Existing booking events
   BOOKING_UPDATE: 'bookingUpdate',
+  
+  // New break events
+  BREAK_CREATED: 'breakCreated',
+  BREAK_TAKEN: 'breakTaken',
+  BREAK_CANCELLED: 'breakCancelled',
+  BREAK_EXPIRED: 'breakExpired',
+  BREAK_LIST_UPDATE: 'breakListUpdate',
+  
+  // Error event
   ERROR: 'error',
 } as const;
