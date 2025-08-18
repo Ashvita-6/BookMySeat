@@ -1,7 +1,7 @@
 // library-seat-frontend/src/components/dashboard/SeatGrid.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState,useEffect } from 'react';
 import Button from '../ui/Button';
 import Card from '../ui/Card';
 import { Seat } from '../../types/seat';
@@ -35,7 +35,11 @@ function BookingModal({ seat, isOpen, onClose, onConfirm }: BookingModalProps) {
     setIsLoading(true);
 
     try {
-      await onConfirm(startTime, endTime);
+      // Convert datetime-local values to ISO string format
+      const startISO = new Date(startTime).toISOString();
+      const endISO = new Date(endTime).toISOString();
+      
+      await onConfirm(startISO, endISO);
       setStartTime('');
       setEndTime('');
       onClose();
@@ -60,6 +64,14 @@ function BookingModal({ seat, isOpen, onClose, onConfirm }: BookingModalProps) {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
+  // Initialize with default values when modal opens
+  useEffect(() => {
+    if (isOpen && !startTime && !endTime) {
+      setStartTime(formatDateTimeLocal(defaultStart));
+      setEndTime(formatDateTimeLocal(defaultEnd));
+    }
+  }, [isOpen]);
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <Card className="bg-gray-800 border-gray-700 w-full max-w-md">
@@ -72,20 +84,20 @@ function BookingModal({ seat, isOpen, onClose, onConfirm }: BookingModalProps) {
             ✕
           </button>
         </div>
-
+        
         <div className="mb-4 p-3 bg-gray-700 rounded-lg">
           <p className="text-white font-medium">{getSeatDisplayName(seat)}</p>
           <p className="text-gray-300 text-sm">
-            {seat.seat_type.charAt(0).toUpperCase() + seat.seat_type.slice(1)} seat
+            {seat.seat_type} • Section {seat.section}
           </p>
           {seat.has_power && (
-            <span className="inline-block mt-1 px-2 py-1 bg-green-600 text-white text-xs rounded">
-              Power Available
+            <span className="inline-block mt-1 px-2 py-1 bg-blue-600 text-white text-xs rounded">
+              Power Outlet
             </span>
           )}
           {seat.has_monitor && (
-            <span className="inline-block mt-1 ml-2 px-2 py-1 bg-blue-600 text-white text-xs rounded">
-              Monitor Available
+            <span className="inline-block mt-1 ml-1 px-2 py-1 bg-purple-600 text-white text-xs rounded">
+              Monitor
             </span>
           )}
         </div>
@@ -103,7 +115,7 @@ function BookingModal({ seat, isOpen, onClose, onConfirm }: BookingModalProps) {
             </label>
             <input
               type="datetime-local"
-              value={startTime || formatDateTimeLocal(defaultStart)}
+              value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
               min={formatDateTimeLocal(now)}
               required
@@ -117,9 +129,9 @@ function BookingModal({ seat, isOpen, onClose, onConfirm }: BookingModalProps) {
             </label>
             <input
               type="datetime-local"
-              value={endTime || formatDateTimeLocal(defaultEnd)}
+              value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
-              min={startTime || formatDateTimeLocal(defaultStart)}
+              min={startTime || formatDateTimeLocal(now)}
               required
               className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -128,16 +140,17 @@ function BookingModal({ seat, isOpen, onClose, onConfirm }: BookingModalProps) {
           <div className="flex gap-3">
             <Button
               type="button"
+              variant="secondary"
               onClick={onClose}
-              variant="outline"
-              className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-700"
+              disabled={isLoading}
+              className="flex-1"
             >
               Cancel
             </Button>
             <Button
               type="submit"
               disabled={isLoading}
-              className="flex-1 bg-blue-600 hover:bg-blue-700"
+              className="flex-1"
             >
               {isLoading ? 'Booking...' : 'Book Seat'}
             </Button>
