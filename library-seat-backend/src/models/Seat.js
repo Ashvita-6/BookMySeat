@@ -1,30 +1,28 @@
+// library-seat-backend/src/models/Seat.js
 const mongoose = require('mongoose');
 
 const seatSchema = new mongoose.Schema({
   building: {
     type: String,
-    enum: ['main', 'reading'],
-    required: true
+    required: true,
+    enum: ['main', 'reading']
   },
   floor_hall: {
     type: String,
-    required: true // For main: 'ground_floor', 'first_floor'. For reading: 'hall_1', 'hall_2', 'hall_3'
+    required: true
   },
   section: {
     type: String,
-    required: true,
-    uppercase: true,
-    trim: true
+    required: true
   },
   seat_number: {
     type: String,
-    required: true,
-    trim: true
+    required: true
   },
   seat_type: {
     type: String,
-    enum: ['individual', 'group', 'computer'],
-    default: 'individual'
+    required: true,
+    enum: ['individual', 'group', 'computer']
   },
   has_power: {
     type: Boolean,
@@ -42,9 +40,12 @@ const seatSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Compound index for unique seat identification
+// Compound index to ensure unique seats per location
 seatSchema.index({ building: 1, floor_hall: 1, section: 1, seat_number: 1 }, { unique: true });
-seatSchema.index({ is_active: 1 });
+
+// Indexes for better performance
 seatSchema.index({ building: 1, floor_hall: 1 });
+seatSchema.index({ seat_type: 1 });
+seatSchema.index({ is_active: 1 });
 
 module.exports = mongoose.model('Seat', seatSchema);

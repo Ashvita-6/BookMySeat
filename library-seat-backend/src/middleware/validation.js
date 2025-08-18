@@ -46,6 +46,26 @@ const validateBooking = (req, res, next) => {
   next();
 };
 
+const validateLogin = (req, res, next) => {
+  const { email, password } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+
+  if (!password) {
+    return res.status(400).json({ error: 'Password is required' });
+  }
+
+  // Validate email format
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Invalid email format' });
+  }
+
+  next();
+};
+
 const validateBreak = (req, res, next) => {
   const { booking_id, break_start_time, break_end_time } = req.body;
 
@@ -168,6 +188,7 @@ const validateSeat = (req, res, next) => {
 
 module.exports = {
   validateBooking,
+  validateLogin,
   validateBreak,
   validateUser,
   validateSeat

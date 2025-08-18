@@ -62,35 +62,90 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Import and use routes with error handling (WiFi route removed)
-const routes = [
-  { path: '/api/auth', file: './routes/auth' },
-  { path: '/api/seats', file: './routes/seats' },
-  { path: '/api/bookings', file: './routes/bookings' },
-  { path: '/api/breaks', file: './routes/breaks' },
-  { path: '/api/users', file: './routes/users' }
-];
+// Load routes individually to better debug issues
+console.log('Loading routes...');
 
-routes.forEach(({ path, file }) => {
-  try {
-    const route = require(file);
-    if (typeof route === 'function' || (route && typeof route.handle === 'function')) {
-      app.use(path, route);
-      console.log(`✓ Route loaded: ${path}`);
-    } else {
-      console.warn(`⚠️ Invalid route export for ${path}, skipping`);
-    }
-  } catch (error) {
-    console.warn(`⚠️ Failed to load route ${path}:`, error.message);
-    // Create a minimal fallback route
-    app.use(path, (req, res) => {
-      res.status(503).json({ 
-        error: `${path} service temporarily unavailable`,
-        message: 'Route not properly configured'
-      });
-    });
+// Auth routes
+try {
+  const authRoutes = require('./routes/auth');
+  if (authRoutes) {
+    app.use('/api/auth', authRoutes);
+    console.log('✓ Auth routes loaded');
+  } else {
+    throw new Error('Auth routes module returned undefined');
   }
-});
+} catch (error) {
+  console.error('❌ Failed to load auth routes:', error.message);
+  app.use('/api/auth', (req, res) => {
+    res.status(503).json({ error: 'Auth service unavailable' });
+  });
+}
+
+// Seats routes
+try {
+  const seatRoutes = require('./routes/seats');
+  if (seatRoutes) {
+    app.use('/api/seats', seatRoutes);
+    console.log('✓ Seat routes loaded');
+  } else {
+    throw new Error('Seat routes module returned undefined');
+  }
+} catch (error) {
+  console.error('❌ Failed to load seat routes:', error.message);
+  app.use('/api/seats', (req, res) => {
+    res.status(503).json({ error: 'Seat service unavailable' });
+  });
+}
+
+// Bookings routes
+try {
+  const bookingRoutes = require('./routes/bookings');
+  if (bookingRoutes) {
+    app.use('/api/bookings', bookingRoutes);
+    console.log('✓ Booking routes loaded');
+  } else {
+    throw new Error('Booking routes module returned undefined');
+  }
+} catch (error) {
+  console.error('❌ Failed to load booking routes:', error.message);
+  app.use('/api/bookings', (req, res) => {
+    res.status(503).json({ error: 'Booking service unavailable' });
+  });
+}
+
+// Break routes
+try {
+  const breakRoutes = require('./routes/breaks');
+  if (breakRoutes) {
+    app.use('/api/breaks', breakRoutes);
+    console.log('✓ Break routes loaded');
+  } else {
+    throw new Error('Break routes module returned undefined');
+  }
+} catch (error) {
+  console.error('❌ Failed to load break routes:', error.message);
+  app.use('/api/breaks', (req, res) => {
+    res.status(503).json({ error: 'Break service unavailable' });
+  });
+}
+
+// Users routes
+try {
+  const userRoutes = require('./routes/users');
+  if (userRoutes) {
+    app.use('/api/users', userRoutes);
+    console.log('✓ User routes loaded');
+  } else {
+    throw new Error('User routes module returned undefined');
+  }
+} catch (error) {
+  console.error('❌ Failed to load user routes:', error.message);
+  app.use('/api/users', (req, res) => {
+    res.status(503).json({ error: 'User service unavailable' });
+  });
+}
+
+console.log('Route loading complete!');
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
