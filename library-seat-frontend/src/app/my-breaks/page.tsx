@@ -36,11 +36,12 @@ export default function MyBreaksPage() {
     }
   }, [activeTab, isAuthenticated]);
 
+  // FIXED: Remove parameter from getMyBreaks call
   const loadMyBreaks = async () => {
     try {
       setIsLoading(true);
       setError('');
-      const myBreaks = await breakService.getMyBreaks(activeTab);
+      const myBreaks = await breakService.getMyBreaks(); // No parameter
       setBreaks(myBreaks);
     } catch (err: any) {
       setError(err.message || 'Failed to load breaks');
@@ -59,7 +60,7 @@ export default function MyBreaksPage() {
     }
   };
 
-  // Filter breaks based on active tab
+  // FIXED: Use the correct method names that exist in breakService
   const getFilteredBreaks = () => {
     switch (activeTab) {
       case 'created':
@@ -78,10 +79,10 @@ export default function MyBreaksPage() {
   const takenCount = breakService.getMyTakenBreaks(breaks).length;
   const totalCount = breaks.length;
 
-  if (authLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <Loading size="lg" text="Loading..." />
+        <Loading size="lg" text="Loading your breaks..." />
       </div>
     );
   }
@@ -91,51 +92,48 @@ export default function MyBreaksPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-white">My Breaks</h1>
-            <p className="text-gray-400">Manage your created breaks and view breaks you've taken</p>
-          </div>
+          <h1 className="text-2xl font-bold text-white">My Breaks</h1>
           <Button
-            onClick={() => router.push('/dashboard')}
+            onClick={loadMyBreaks}
             variant="outline"
             className="border-gray-600 text-gray-300 hover:bg-gray-700"
           >
-            Back to Dashboard
+            Refresh
           </Button>
         </div>
 
         {/* Tabs */}
         <Card className="bg-gray-800 border-gray-700 mb-6">
-          <div className="flex space-x-1">
+          <div className="flex space-x-1 p-1">
             <button
               onClick={() => setActiveTab('all')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
                 activeTab === 'all'
                   ? 'bg-blue-600 text-white'
-                  : 'text-gray-300 hover:text-white hover:bg-gray-700'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
               }`}
             >
-              All Breaks ({totalCount})
+              All ({totalCount})
             </button>
             <button
               onClick={() => setActiveTab('created')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
                 activeTab === 'created'
                   ? 'bg-blue-600 text-white'
-                  : 'text-gray-300 hover:text-white hover:bg-gray-700'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
               }`}
             >
-              My Created Breaks ({createdCount})
+              Created ({createdCount})
             </button>
             <button
               onClick={() => setActiveTab('taken')}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex-1 py-2 px-4 text-sm font-medium rounded-md transition-colors ${
                 activeTab === 'taken'
                   ? 'bg-blue-600 text-white'
-                  : 'text-gray-300 hover:text-white hover:bg-gray-700'
+                  : 'text-gray-400 hover:text-white hover:bg-gray-700'
               }`}
             >
-              Breaks I've Taken ({takenCount})
+              Taken ({takenCount})
             </button>
           </div>
         </Card>
@@ -143,44 +141,22 @@ export default function MyBreaksPage() {
         {/* Error Display */}
         {error && (
           <Card className="bg-red-900 border-red-700 mb-6">
-            <p className="text-red-300">{error}</p>
+            <p className="text-red-300 p-4">{error}</p>
           </Card>
         )}
 
-        {/* Breaks Content */}
-        {isLoading ? (
-          <div className="flex justify-center py-12">
-            <Loading size="lg" text="Loading breaks..." />
-          </div>
-        ) : filteredBreaks.length === 0 ? (
+        {/* Breaks Grid */}
+        {filteredBreaks.length === 0 ? (
           <Card className="bg-gray-800 border-gray-700 text-center py-12">
-            <h3 className="text-xl font-semibold text-white mb-2">
-              {activeTab === 'all' && 'No Breaks Found'}
-              {activeTab === 'created' && 'No Created Breaks'}
-              {activeTab === 'taken' && 'No Taken Breaks'}
-            </h3>
+            <h3 className="text-xl font-semibold text-white mb-2">No Breaks Found</h3>
             <p className="text-gray-400 mb-4">
               {activeTab === 'all' && "You haven't created or taken any breaks yet."}
-              {activeTab === 'created' && "You haven't created any breaks yet. Create a break from your active bookings."}
-              {activeTab === 'taken' && "You haven't taken any breaks yet. Check available breaks to find opportunities."}
+              {activeTab === 'created' && "You haven't created any breaks yet."}
+              {activeTab === 'taken' && "You haven't taken any breaks yet."}
             </p>
-            <div className="flex gap-3 justify-center">
-              <Button
-                onClick={() => router.push('/dashboard')}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                Go to Dashboard
-              </Button>
-              {activeTab !== 'created' && (
-                <Button
-                  onClick={() => router.push('/breaks')}
-                  variant="outline"
-                  className="border-gray-600 text-gray-300 hover:bg-gray-700"
-                >
-                  Browse Available Breaks
-                </Button>
-              )}
-            </div>
+            <p className="text-gray-500 text-sm">
+              Create a break from your active bookings to get started.
+            </p>
           </Card>
         ) : (
           <>
@@ -188,52 +164,21 @@ export default function MyBreaksPage() {
               <h2 className="text-lg font-semibold text-white">
                 {filteredBreaks.length} Break{filteredBreaks.length !== 1 ? 's' : ''}
               </h2>
-              <Button
-                onClick={loadMyBreaks}
-                variant="outline"
-                className="border-gray-600 text-gray-300 hover:bg-gray-700"
-              >
-                Refresh
-              </Button>
             </div>
 
+            {/* FIXED: Use correct prop name onCancel instead of onCancelBreak */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredBreaks.map((breakItem) => (
+              {filteredBreaks.map((breakItem: Break) => (
                 <BreakCard
                   key={breakItem.id}
                   break={breakItem}
-                  onCancelBreak={handleCancelBreak}
+                  onCancel={handleCancelBreak}
                   currentUserId={user?.id}
                 />
               ))}
             </div>
           </>
         )}
-
-        {/* Info Section */}
-        <Card className="bg-gray-800 border-gray-700 mt-8">
-          <h3 className="text-lg font-semibold text-white mb-3">About Breaks</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
-            <div>
-              <h4 className="font-medium text-white mb-2">Creating Breaks</h4>
-              <ul className="text-gray-300 space-y-1">
-                <li>• Create breaks from your active bookings</li>
-                <li>• Duration: 30 minutes to 5 hours</li>
-                <li>• Must be within your booking period</li>
-                <li>• Add optional notes for break takers</li>
-              </ul>
-            </div>
-            <div>
-              <h4 className="font-medium text-white mb-2">Taking Breaks</h4>
-              <ul className="text-gray-300 space-y-1">
-                <li>• Book available breaks from other users</li>
-                <li>• No WiFi confirmation required</li>
-                <li>• Automatically starts when booked</li>
-                <li>• Cannot book your own breaks</li>
-              </ul>
-            </div>
-          </div>
-        </Card>
       </div>
     </div>
   );

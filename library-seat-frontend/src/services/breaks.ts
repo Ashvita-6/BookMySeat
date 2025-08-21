@@ -1,7 +1,4 @@
-// ==================================================
-// FIXED: library-seat-frontend/src/services/breaks.ts
-// ==================================================
-
+// library-seat-frontend/src/services/breaks.ts
 import { api } from './api';
 import { Break, CreateBreakData, BreakFilters } from '@/types/break';
 
@@ -24,10 +21,10 @@ export class BreakService {
     }
   }
 
-  // FIXED: Use the correct method name from API
+  // FIXED: Remove parameter, getMyBreaks doesn't take any arguments
   async getMyBreaks(): Promise<Break[]> {
     try {
-      const response = await api.breaks.getMyBreaks(); // Using getMyBreaks instead of getMy
+      const response = await api.breaks.getMyBreaks(); 
       return response.breaks || [];
     } catch (error) {
       throw error;
@@ -50,6 +47,17 @@ export class BreakService {
     } catch (error) {
       throw error;
     }
+  }
+
+  // FIXED: Add the missing filter methods that were being called
+  getMyCreatedBreaks(breaks: Break[]): Break[] {
+    return breaks.filter(breakItem => breakItem.is_my_break === true);
+  }
+
+  getMyTakenBreaks(breaks: Break[]): Break[] {
+    return breaks.filter(breakItem => 
+      breakItem.taken_by && breakItem.is_my_break === false
+    );
   }
 
   // Utility methods for break management

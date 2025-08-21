@@ -1,13 +1,10 @@
-// ==================================================
-// FIXED: library-seat-frontend/src/services/api.ts
-// ==================================================
-
+// library-seat-frontend/src/services/api.ts
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
 
 const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
   const url = `${BASE_URL}${endpoint}`;
   
-  // FIXED: Handle possible null value from localStorage
+  // Handle possible null value from localStorage
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   
   const config: RequestInit = {
@@ -42,7 +39,6 @@ export const api = {
     getAll: (params?: Record<string, any>) => {
       const queryString = params ? 
         '?' + new URLSearchParams(
-          // FIXED: Handle possible null/undefined values
           Object.entries(params).reduce((acc, [key, value]) => {
             if (value !== null && value !== undefined && value !== '') {
               acc[key] = String(value);
@@ -107,14 +103,25 @@ export const api = {
     profile: () => apiRequest('/auth/profile'),
   },
   breaks: {
-    getAvailable: () => apiRequest('/breaks/available'),
-    takeBreak: (seatId: number) => apiRequest('/breaks/take', {
+    getAvailable: (filters?: any) => {
+      const params = new URLSearchParams();
+      if (filters?.building) params.append('building', filters.building);
+      if (filters?.floor_hall) params.append('floor_hall', filters.floor_hall);
+      if (filters?.seat_type) params.append('seat_type', filters.seat_type);
+      if (filters?.min_duration) params.append('min_duration', filters.min_duration.toString());
+      
+      return apiRequest(`/breaks/available?${params.toString()}`);
+    },
+    getMyBreaks: () => apiRequest('/breaks/my-breaks'),
+    create: (data: any) => apiRequest('/breaks', {
       method: 'POST',
-      body: JSON.stringify({ seat_id: seatId }),
+      body: JSON.stringify(data),
     }),
-    endBreak: (seatId: number) => apiRequest('/breaks/end', {
+    book: (breakId: number) => apiRequest(`/breaks/${breakId}/book`, {
       method: 'POST',
-      body: JSON.stringify({ seat_id: seatId }),
+    }),
+    cancel: (breakId: number) => apiRequest(`/breaks/${breakId}/cancel`, {
+      method: 'PUT',
     }),
   },
   users: {
@@ -138,12 +145,10 @@ export const api = {
     delete: (id: number) => apiRequest(`/users/${id}`, {
       method: 'DELETE',
     }),
-  },
-  wifi: {
-    confirm: (data: any) => apiRequest('/wifi/confirm', {
-      method: 'POST',
+    // FIXED: Add the missing updateRole method
+    updateRole: (id: number, data: { role: 'student' | 'admin' }) => apiRequest(`/users/${id}/role`, {
+      method: 'PUT',
       body: JSON.stringify(data),
     }),
-    health: () => apiRequest('/wifi/health'),
   },
 };

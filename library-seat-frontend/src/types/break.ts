@@ -1,15 +1,10 @@
-// ==================================================
-// UPDATED: library-seat-frontend/src/types/break.ts
-// ==================================================
-
-import { Booking } from './booking';
-
+// library-seat-frontend/src/types/break.ts
 export interface Break {
   id: number;
   booking_id: number;
   user_id: number;
   user_name: string;
-  user_student_id?: string;
+  user_student_id?: string; // FIXED: Added missing property
   seat_id: number;
   building: 'main' | 'reading';
   floor_hall: string;
@@ -23,22 +18,21 @@ export interface Break {
     id: number;
     name: string;
     student_id: string;
-  };
+  } | null;
   taken_at?: string;
-  notes: string;
-  duration_minutes: number;
-  time_remaining_minutes?: number;
-  is_my_break?: boolean;
+  notes?: string;
+  is_my_break: boolean;
   break_booking?: {
     id: number;
     start_time: string;
     end_time: string;
     status: string;
-  };
+  } | null;
+  // FIXED: Added missing original booking properties
   original_booking_start?: string;
   original_booking_end?: string;
   created_at: string;
-  updated_at?: string;
+  updated_at: string;
 }
 
 export interface CreateBreakData {
@@ -51,20 +45,6 @@ export interface CreateBreakData {
 export interface BreakFilters {
   building?: 'main' | 'reading';
   floor_hall?: string;
-  seat_type?: 'individual' | 'group' | 'computer';
-  min_duration?: number; // in minutes
+  seat_type?: string;
+  min_duration?: number;
 }
-
-export interface BreakBooking extends Booking {
-  is_break_booking: true;
-  break_id: number;
-  original_user: string;
-}
-
-// Status colors for break display
-export const BREAK_STATUS = {
-  active: { label: 'Available', color: 'bg-green-500' },
-  taken: { label: 'Taken', color: 'bg-blue-500' },
-  expired: { label: 'Expired', color: 'bg-gray-500' },
-  cancelled: { label: 'Cancelled', color: 'bg-red-500' },
-} as const;

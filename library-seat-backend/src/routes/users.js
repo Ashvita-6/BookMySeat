@@ -1,17 +1,19 @@
 // library-seat-backend/src/routes/users.js
 const express = require('express');
-const { adminAuth } = require('../middleware/auth');
-const { getAllUsers, updateUserRole, deleteUser } = require('../controllers/userController');
-
 const router = express.Router();
+const { getAllUsers, updateUserRole, deleteUser } = require('../controllers/userController');
+const { authenticateToken, requireAdmin } = require('../middleware/auth');
 
-// Get all users (admin only)
-router.get('/', adminAuth, getAllUsers);
+// All user routes require authentication
+router.use(authenticateToken);
 
-// Update user role (admin only) - Fixed parameter syntax for Express 5
-router.put('/:id(\\d+)/role', adminAuth, updateUserRole);
+// GET /api/users - Get all users (admin only)
+router.get('/', requireAdmin, getAllUsers);
 
-// Delete user (admin only) - Fixed parameter syntax
-router.delete('/:id(\\d+)', adminAuth, deleteUser);
+// PUT /api/users/:id/role - Update user role (admin only)
+router.put('/:id/role', requireAdmin, updateUserRole);
+
+// DELETE /api/users/:id - Delete user (admin only)
+router.delete('/:id', requireAdmin, deleteUser);
 
 module.exports = router;
