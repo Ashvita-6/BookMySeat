@@ -27,23 +27,38 @@ app.locals.io = io;
 global.io = io; // Make available for cleanup jobs
 
 // Security middleware
-app.use(helmet());
-
-// CORS configuration
-app.use(cors({
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: false
 }));
+
+// CORS configuration - FIXED: More permissive CORS
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    process.env.FRONTEND_URL
+  ].filter(Boolean),
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
+}));
+
+// Handle preflight requests
+app.options('*', cors());
 
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 1000, // Increased limit for development
   message: { error: 'Too many requests, please try again later' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for health checks and development
+    return req.path === '/api/health' || process.env.NODE_ENV === 'development';
+  }
 });
 
 app.use(limiter);
@@ -52,25 +67,32 @@ app.use(limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`📨 ${req.method} ${req.path} - ${new Date().toISOString()}`);
+  next();
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development'
+    environment: process.env.NODE_ENV || 'development',
+    message: 'Server is running correctly'
   });
 });
 
-// Load routes individually to better debug issues
-console.log('Loading routes...');
+// Load routes with better error handling
+console.log('🔄 Loading routes...');
 
 // Auth routes
 try {
   const authRoutes = require('./routes/auth');
   if (authRoutes) {
     app.use('/api/auth', authRoutes);
-    console.log('✓ Auth routes loaded');
+    console.log('✅ Auth routes loaded');
   } else {
     throw new Error('Auth routes module returned undefined');
   }
@@ -86,7 +108,7 @@ try {
   const seatRoutes = require('./routes/seats');
   if (seatRoutes) {
     app.use('/api/seats', seatRoutes);
-    console.log('✓ Seat routes loaded');
+    console.log('✅ Seat routes loaded');
   } else {
     throw new Error('Seat routes module returned undefined');
   }
@@ -102,7 +124,7 @@ try {
   const bookingRoutes = require('./routes/bookings');
   if (bookingRoutes) {
     app.use('/api/bookings', bookingRoutes);
-    console.log('✓ Booking routes loaded');
+    console.log('✅ Booking routes loaded');
   } else {
     throw new Error('Booking routes module returned undefined');
   }
@@ -113,12 +135,12 @@ try {
   });
 }
 
-// Break routes - FIXED: Changed from 'break' to 'breaks'
+// Break routes
 try {
-  const breakRoutes = require('./routes/breaks'); // FIXED: Changed from './routes/break'
+  const breakRoutes = require('./routes/breaks');
   if (breakRoutes) {
     app.use('/api/breaks', breakRoutes);
-    console.log('✓ Break routes loaded');
+    console.log('✅ Break routes loaded');
   } else {
     throw new Error('Break routes module returned undefined');
   }
@@ -134,7 +156,7 @@ try {
   const userRoutes = require('./routes/users');
   if (userRoutes) {
     app.use('/api/users', userRoutes);
-    console.log('✓ User routes loaded');
+    console.log('✅ User routes loaded');
   } else {
     throw new Error('User routes module returned undefined');
   }
@@ -145,19 +167,23 @@ try {
   });
 }
 
-console.log('Route loading complete!');
-
-// FIXED: Initialize background cleanup jobs
+// WiFi routes
 try {
-  const { initBreakCleanupJob } = require('./jobs/breakCleanup');
-  const { initBookingCleanupJob } = require('./jobs/bookingCleanup');
-  
-  initBreakCleanupJob();
-  initBookingCleanupJob();
-  console.log('✓ Cleanup jobs initialized');
+  const wifiRoutes = require('./routes/wifi');
+  if (wifiRoutes) {
+    app.use('/api/wifi', wifiRoutes);
+    console.log('✅ WiFi routes loaded');
+  } else {
+    throw new Error('WiFi routes module returned undefined');
+  }
 } catch (error) {
-  console.error('❌ Failed to initialize cleanup jobs:', error.message);
+  console.error('❌ Failed to load wifi routes:', error.message);
+  app.use('/api/wifi', (req, res) => {
+    res.status(503).json({ error: 'WiFi service unavailable' });
+  });
 }
+
+console.log('✅ Route loading complete!');
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
@@ -166,23 +192,23 @@ io.on('connection', (socket) => {
   // Handle seat-related events
   socket.on('joinSeat', (seatId) => {
     socket.join(`seat_${seatId}`);
-    console.log(`User ${socket.id} joined seat ${seatId}`);
+    console.log(`👤 User ${socket.id} joined seat ${seatId}`);
   });
 
   socket.on('leaveSeat', (seatId) => {
     socket.leave(`seat_${seatId}`);
-    console.log(`User ${socket.id} left seat ${seatId}`);
+    console.log(`👤 User ${socket.id} left seat ${seatId}`);
   });
 
   // Handle break-related events
   socket.on('joinBreaks', () => {
     socket.join('breaks');
-    console.log(`User ${socket.id} joined breaks channel`);
+    console.log(`👤 User ${socket.id} joined breaks channel`);
   });
 
   socket.on('leaveBreaks', () => {
     socket.leave('breaks');
-    console.log(`User ${socket.id} left breaks channel`);
+    console.log(`👤 User ${socket.id} left breaks channel`);
   });
 
   socket.on('disconnect', () => {
@@ -190,24 +216,31 @@ io.on('connection', (socket) => {
   });
 
   socket.on('error', (error) => {
-    console.error(`Socket error for ${socket.id}:`, error);
+    console.error(`❌ Socket error for ${socket.id}:`, error);
+  });
+});
+
+// 404 handler for API routes
+app.use('/api/*', (req, res) => {
+  res.status(404).json({ 
+    error: 'API endpoint not found',
+    path: req.path,
+    method: req.method
   });
 });
 
 // Global error handler
 app.use((error, req, res, next) => {
-  console.error('Global error handler:', error);
+  console.error('❌ Global error handler:', error);
+  
+  if (res.headersSent) {
+    return next(error);
+  }
+  
   res.status(500).json({ 
     error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong'
-  });
-});
-
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({ 
-    error: 'Route not found',
-    path: req.originalUrl 
+    message: process.env.NODE_ENV === 'development' ? error.message : 'Something went wrong',
+    timestamp: new Date().toISOString()
   });
 });
 

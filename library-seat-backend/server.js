@@ -3,7 +3,6 @@ require('dotenv').config();
 
 const { app, server } = require('./src/app');
 const connectDB = require('./src/config/database');
-const { initBreakCleanupJob } = require('./src/jobs/breakCleanup');
 
 // Improved error handling
 process.on('uncaughtException', (error) => {
@@ -20,36 +19,44 @@ process.on('unhandledRejection', (reason, promise) => {
 const startServer = async () => {
   try {
     // Connect to database first
-    console.log('Connecting to database...');
+    console.log('🔄 Connecting to database...');
     await connectDB();
-    console.log('✓ Database connected successfully');
+    console.log('✅ Database connected successfully');
 
     // Initialize cleanup jobs after database connection
-    initBreakCleanupJob();
+    try {
+      const { initBreakCleanupJob } = require('./src/jobs/breakCleanup');
+      initBreakCleanupJob();
+      console.log('✅ Break cleanup job initialized');
+    } catch (error) {
+      console.warn('⚠️  Break cleanup job failed to initialize:', error.message);
+    }
 
     const PORT = process.env.PORT || 5001;
     
-    server.listen(PORT, (error) => {
+    server.listen(PORT, '0.0.0.0', (error) => {
       if (error) {
         console.error('❌ Failed to start server:', error);
         process.exit(1);
       }
       
-      console.log('🚀 Server Status:');
-      console.log(`   📍 Port: ${PORT}`);
-      console.log(`   🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`   🔗 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
-      console.log(`   📡 Socket.IO: Active`);
-      console.log(`   💾 Database: Connected`);
-      console.log(`   🕒 Break Cleanup: Active`);
+      console.log('\n🚀 ====== SERVER STARTED SUCCESSFULLY ======');
+      console.log(`📍 Port: ${PORT}`);
+      console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🔗 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+      console.log(`📡 Socket.IO: Active`);
+      console.log(`💾 Database: Connected`);
       console.log('');
-      console.log('🎯 API Endpoints:');
-      console.log(`   GET  http://localhost:${PORT}/api/health`);
-      console.log(`   GET  http://localhost:${PORT}/api/seats`);
-      console.log(`   POST http://localhost:${PORT}/api/auth/login`);
-      console.log(`   GET  http://localhost:${PORT}/api/breaks/available`);
+      console.log('🎯 Available API Endpoints:');
+      console.log(`   ✅ GET  http://localhost:${PORT}/api/health`);
+      console.log(`   ✅ GET  http://localhost:${PORT}/api/seats`);
+      console.log(`   ✅ POST http://localhost:${PORT}/api/auth/login`);
+      console.log(`   ✅ POST http://localhost:${PORT}/api/auth/register`);
+      console.log(`   ✅ GET  http://localhost:${PORT}/api/bookings/my-bookings`);
+      console.log(`   ✅ GET  http://localhost:${PORT}/api/breaks/available`);
       console.log('');
-      console.log('Ready for connections! 🎉');
+      console.log('🎉 Ready for connections!');
+      console.log('==========================================\n');
     });
 
     // Graceful shutdown
@@ -57,11 +64,11 @@ const startServer = async () => {
       console.log(`\n📴 Received ${signal}. Starting graceful shutdown...`);
       
       server.close(() => {
-        console.log('✓ HTTP server closed');
+        console.log('✅ HTTP server closed');
         
         // Close database connection
         require('mongoose').connection.close(() => {
-          console.log('✓ Database connection closed');
+          console.log('✅ Database connection closed');
           console.log('👋 Server shutdown complete');
           process.exit(0);
         });

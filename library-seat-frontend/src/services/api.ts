@@ -2,7 +2,7 @@
 // FIXED: library-seat-frontend/src/services/api.ts
 // ==================================================
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
 
 const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
   const url = `${BASE_URL}${endpoint}`;
@@ -88,47 +88,62 @@ export const api = {
       
       return apiRequest(`/bookings?${params.toString()}`);
     },
-    // FIXED: This should work now without 404
     cancel: (id: number) => apiRequest(`/bookings/${id}/cancel`, {
+      method: 'PUT',
+    }),
+    complete: (id: number) => apiRequest(`/bookings/${id}/complete`, {
       method: 'PUT',
     }),
   },
   auth: {
-    login: (data: any) => apiRequest('/auth/login', {
+    login: (credentials: any) => apiRequest('/auth/login', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(credentials),
     }),
     register: (data: any) => apiRequest('/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-    getProfile: () => apiRequest('/auth/profile'),
+    profile: () => apiRequest('/auth/profile'),
   },
   breaks: {
-    create: (data: any) => apiRequest('/breaks', {
+    getAvailable: () => apiRequest('/breaks/available'),
+    takeBreak: (seatId: number) => apiRequest('/breaks/take', {
+      method: 'POST',
+      body: JSON.stringify({ seat_id: seatId }),
+    }),
+    endBreak: (seatId: number) => apiRequest('/breaks/end', {
+      method: 'POST',
+      body: JSON.stringify({ seat_id: seatId }),
+    }),
+  },
+  users: {
+    getAll: (role?: string, limit?: number, offset?: number) => {
+      const params = new URLSearchParams();
+      if (role) params.append('role', role);
+      if (limit) params.append('limit', limit.toString());
+      if (offset) params.append('offset', offset.toString());
+      
+      return apiRequest(`/users?${params.toString()}`);
+    },
+    getById: (id: number) => apiRequest(`/users/${id}`),
+    create: (data: any) => apiRequest('/users', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-    getAvailable: (filters?: any) => {
-      const params = new URLSearchParams();
-      if (filters) {
-        Object.entries(filters).forEach(([key, value]) => {
-          // FIXED: Handle possible null/undefined values
-          if (value !== undefined && value !== null && value !== '') {
-            params.append(key, String(value));
-          }
-        });
-      }
-      return apiRequest(`/breaks/available?${params.toString()}`);
-    },
-    // FIXED: Added missing getMyBreaks method
-    getMyBreaks: () => apiRequest('/breaks/my-breaks'),
-    getMy: () => apiRequest('/breaks/my-breaks'), // Keep both for compatibility
-    book: (id: number) => apiRequest(`/breaks/${id}/book`, {
-      method: 'POST',
-    }),
-    cancel: (id: number) => apiRequest(`/breaks/${id}/cancel`, {
+    update: (id: number, data: any) => apiRequest(`/users/${id}`, {
       method: 'PUT',
+      body: JSON.stringify(data),
     }),
-  }
+    delete: (id: number) => apiRequest(`/users/${id}`, {
+      method: 'DELETE',
+    }),
+  },
+  wifi: {
+    confirm: (data: any) => apiRequest('/wifi/confirm', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+    health: () => apiRequest('/wifi/health'),
+  },
 };

@@ -1,370 +1,156 @@
-
+// library-seat-backend/src/routes/bookings.js
 const express = require('express');
-const { auth, adminAuth } = require('../middleware/auth');
-const { validateBooking } = require('../middleware/validation');
-const { createBooking, getUserBookings, cancelBooking, getAllBookings } = require('../controllers/bookingController');
-
 const router = express.Router();
 
-// Create booking
-router.post('/', auth, validateBooking, createBooking);
+// Mock booking data for now
+const mockBookings = [
+  {
+    id: 1,
+    seat_id: 1,
+    user_id: 1,
+    start_time: new Date(),
+    end_time: new Date(Date.now() + 2 * 60 * 60 * 1000), // 2 hours from now
+    status: 'active',
+    created_at: new Date()
+  }
+];
 
-// Get user's bookings
-router.get('/my-bookings', auth, getUserBookings);
+// GET /api/bookings/my-bookings
+router.get('/my-bookings', (req, res) => {
+  console.log('📍 GET /api/bookings/my-bookings requested');
+  
+  try {
+    const { status, limit = 10, offset = 0 } = req.query;
+    
+    let filteredBookings = mockBookings;
+    
+    if (status) {
+      filteredBookings = filteredBookings.filter(booking => booking.status === status);
+    }
+    
+    const paginatedBookings = filteredBookings.slice(offset, offset + parseInt(limit));
+    
+    res.json({
+      bookings: paginatedBookings,
+      total: filteredBookings.length,
+      message: 'Bookings retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error in my-bookings:', error);
+    res.status(500).json({ error: 'Failed to fetch bookings' });
+  }
+});
 
-// Cancel booking - FIXED: Removed restrictive regex pattern
-router.put('/:id/cancel', auth, cancelBooking);
+// GET /api/bookings - Get all bookings (admin)
+router.get('/', (req, res) => {
+  console.log('📍 GET /api/bookings requested');
+  
+  try {
+    const { status, seat_id, limit = 10, offset = 0 } = req.query;
+    
+    let filteredBookings = mockBookings;
+    
+    if (status) {
+      filteredBookings = filteredBookings.filter(booking => booking.status === status);
+    }
+    
+    if (seat_id) {
+      filteredBookings = filteredBookings.filter(booking => booking.seat_id === parseInt(seat_id));
+    }
+    
+    const paginatedBookings = filteredBookings.slice(offset, offset + parseInt(limit));
+    
+    res.json({
+      bookings: paginatedBookings,
+      total: filteredBookings.length,
+      message: 'All bookings retrieved successfully'
+    });
+  } catch (error) {
+    console.error('Error in get all bookings:', error);
+    res.status(500).json({ error: 'Failed to fetch bookings' });
+  }
+});
 
-// Get all bookings (admin only)
-router.get('/', adminAuth, getAllBookings);
+// POST /api/bookings - Create new booking
+router.post('/', (req, res) => {
+  console.log('📍 POST /api/bookings requested');
+  console.log('Request body:', req.body);
+  
+  try {
+    const { seat_id, start_time, end_time } = req.body;
+    
+    if (!seat_id || !start_time || !end_time) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    const newBooking = {
+      id: mockBookings.length + 1,
+      seat_id: parseInt(seat_id),
+      user_id: 1, // Mock user ID
+      start_time: new Date(start_time),
+      end_time: new Date(end_time),
+      status: 'active',
+      created_at: new Date()
+    };
+    
+    mockBookings.push(newBooking);
+    
+    res.status(201).json({
+      booking: newBooking,
+      message: 'Booking created successfully'
+    });
+  } catch (error) {
+    console.error('Error creating booking:', error);
+    res.status(500).json({ error: 'Failed to create booking' });
+  }
+});
+
+// PUT /api/bookings/:id/cancel - Cancel booking
+router.put('/:id/cancel', (req, res) => {
+  console.log(`📍 PUT /api/bookings/${req.params.id}/cancel requested`);
+  
+  try {
+    const bookingId = parseInt(req.params.id);
+    const booking = mockBookings.find(b => b.id === bookingId);
+    
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+    
+    booking.status = 'cancelled';
+    
+    res.json({
+      booking,
+      message: 'Booking cancelled successfully'
+    });
+  } catch (error) {
+    console.error('Error cancelling booking:', error);
+    res.status(500).json({ error: 'Failed to cancel booking' });
+  }
+});
+
+// PUT /api/bookings/:id/complete - Complete booking
+router.put('/:id/complete', (req, res) => {
+  console.log(`📍 PUT /api/bookings/${req.params.id}/complete requested`);
+  
+  try {
+    const bookingId = parseInt(req.params.id);
+    const booking = mockBookings.find(b => b.id === bookingId);
+    
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+    
+    booking.status = 'completed';
+    
+    res.json({
+      booking,
+      message: 'Booking completed successfully'
+    });
+  } catch (error) {
+    console.error('Error completing booking:', error);
+    res.status(500).json({ error: 'Failed to complete booking' });
+  }
+});
 
 module.exports = router;
-
-// ==================================================
-// 3. UPDATED SEAT CONTROLLER - library-seat-backend/src/controllers/seatController.js
-// ==================================================
-
-const Seat = require('../models/Seat');
-const Booking = require('../models/Booking');
-
-const getAllSeats = async (req, res) => {
-  try {
-    const {
-      building,
-      floor_hall,
-      section,
-      seat_type,
-      has_power,
-      has_monitor,
-      status,
-      page = 1,
-      limit = 1000  // Increased limit to ensure all seats are returned
-    } = req.query;
-
-    // Build filter object
-    const filter = { is_active: true };
-    
-    if (building) filter.building = building;
-    if (floor_hall) filter.floor_hall = floor_hall;
-    if (section) filter.section = section;
-    if (seat_type) filter.seat_type = seat_type;
-    if (has_power !== undefined) filter.has_power = has_power === 'true';
-    if (has_monitor !== undefined) filter.has_monitor = has_monitor === 'true';
-
-    console.log('Seat filter applied:', filter);
-
-    // Get seats with pagination
-    const seats = await Seat.find(filter)
-      .sort({ building: 1, floor_hall: 1, section: 1, seat_number: 1 })
-      .limit(parseInt(limit))
-      .skip((parseInt(page) - 1) * parseInt(limit));
-
-    console.log(`Found ${seats.length} seats for filter:`, filter);
-
-    // Debug specific issue
-    if (building === 'reading' && (floor_hall === 'hall_2' || floor_hall === 'hall_3')) {
-      console.log(`🔍 Debug - ${building} ${floor_hall}: Found ${seats.length} seats`);
-      if (seats.length > 0) {
-        console.log('Sample seats:', seats.slice(0, 3).map(s => `${s.building}-${s.floor_hall}-${s.section}${s.seat_number}`));
-      }
-    }
-
-    // Get current time for status checking
-    const now = new Date();
-
-    // Get active bookings for these seats
-    const seatIds = seats.map(seat => seat._id);
-    const activeBookings = await Booking.find({
-      seat_id: { $in: seatIds },
-      status: 'active',
-      start_time: { $lte: now },
-      end_time: { $gt: now }
-    }).populate('user_id', 'name');
-
-    // Create a map of seat_id to booking info
-    const bookingMap = {};
-    activeBookings.forEach(booking => {
-      bookingMap[booking.seat_id.toString()] = {
-        occupied_by: booking.user_id._id,
-        occupied_by_name: booking.user_id.name,
-        occupied_until: booking.end_time,
-        booking_status: booking.status
-      };
-    });
-
-    // Format seats with booking status
-    const formattedSeats = seats.map(seat => {
-      const seatId = seat._id.toString();
-      const bookingInfo = bookingMap[seatId];
-      
-      return {
-        id: seat._id,
-        building: seat.building,
-        floor_hall: seat.floor_hall,
-        section: seat.section,
-        seat_number: seat.seat_number,
-        seat_type: seat.seat_type,
-        has_power: seat.has_power,
-        has_monitor: seat.has_monitor,
-        is_active: seat.is_active,
-        status: bookingInfo ? 'occupied' : 'available',
-        occupied_by: bookingInfo?.occupied_by || null,
-        occupied_until: bookingInfo?.occupied_until || null,
-        occupied_by_name: bookingInfo?.occupied_by_name || null,
-        created_at: seat.createdAt,
-        updated_at: seat.updatedAt
-      };
-    });
-
-    // Apply status filter if requested
-    const filteredSeats = status 
-      ? formattedSeats.filter(seat => seat.status === status)
-      : formattedSeats;
-
-    console.log(`Returning ${filteredSeats.length} seats after status filter`);
-
-    res.json({ 
-      seats: filteredSeats,
-      total: filteredSeats.length,
-      page: parseInt(page),
-      limit: parseInt(limit),
-      debug: {
-        filter_applied: filter,
-        raw_seat_count: seats.length,
-        final_seat_count: filteredSeats.length
-      }
-    });
-
-  } catch (error) {
-    console.error('Get seats error:', error);
-    res.status(500).json({ error: 'Failed to get seats' });
-  }
-};
-
-const getSeatById = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const seat = await Seat.findById(id);
-
-    if (!seat) {
-      return res.status(404).json({ error: 'Seat not found' });
-    }
-
-    // Check if seat is currently occupied
-    const now = new Date();
-    const activeBooking = await Booking.findOne({
-      seat_id: id,
-      status: 'active',
-      start_time: { $lte: now },
-      end_time: { $gt: now }
-    }).populate('user_id', 'name');
-
-    const formattedSeat = {
-      id: seat._id,
-      building: seat.building,
-      floor_hall: seat.floor_hall,
-      section: seat.section,
-      seat_number: seat.seat_number,
-      seat_type: seat.seat_type,
-      has_power: seat.has_power,
-      has_monitor: seat.has_monitor,
-      is_active: seat.is_active,
-      status: activeBooking ? 'occupied' : 'available',
-      occupied_by: activeBooking?.user_id._id || null,
-      occupied_until: activeBooking?.end_time || null,
-      occupied_by_name: activeBooking?.user_id.name || null,
-      created_at: seat.createdAt,
-      updated_at: seat.updatedAt
-    };
-
-    res.json({ seat: formattedSeat });
-
-  } catch (error) {
-    console.error('Get seat error:', error);
-    res.status(500).json({ error: 'Failed to get seat' });
-  }
-};
-
-const createSeat = async (req, res) => {
-  try {
-    const { 
-      building, 
-      floor_hall, 
-      section, 
-      seat_number, 
-      seat_type, 
-      has_power = false, 
-      has_monitor = false 
-    } = req.body;
-
-    // Check if seat already exists
-    const existingSeat = await Seat.findOne({
-      building,
-      floor_hall,
-      section,
-      seat_number
-    });
-
-    if (existingSeat) {
-      return res.status(400).json({ 
-        error: 'Seat already exists in this location' 
-      });
-    }
-
-    const seat = new Seat({
-      building,
-      floor_hall,
-      section,
-      seat_number,
-      seat_type,
-      has_power,
-      has_monitor,
-      is_active: true
-    });
-
-    await seat.save();
-
-    const formattedSeat = {
-      id: seat._id,
-      building: seat.building,
-      floor_hall: seat.floor_hall,
-      section: seat.section,
-      seat_number: seat.seat_number,
-      seat_type: seat.seat_type,
-      has_power: seat.has_power,
-      has_monitor: seat.has_monitor,
-      is_active: seat.is_active,
-      status: 'available',
-      occupied_by: null,
-      occupied_until: null,
-      occupied_by_name: null,
-      created_at: seat.createdAt,
-      updated_at: seat.updatedAt
-    };
-
-    res.status(201).json({
-      message: 'Seat created successfully',
-      seat: formattedSeat
-    });
-
-  } catch (error) {
-    console.error('Create seat error:', error);
-    
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({ 
-        error: 'Validation error',
-        details: Object.values(error.errors).map(e => e.message)
-      });
-    }
-    
-    res.status(500).json({ error: 'Failed to create seat' });
-  }
-};
-
-const updateSeat = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updates = req.body;
-
-    // Remove fields that shouldn't be updated directly
-    delete updates.id;
-    delete updates._id;
-    delete updates.created_at;
-    delete updates.updated_at;
-
-    const seat = await Seat.findByIdAndUpdate(
-      id,
-      updates,
-      { new: true, runValidators: true }
-    );
-
-    if (!seat) {
-      return res.status(404).json({ error: 'Seat not found' });
-    }
-
-    // Check current booking status
-    const now = new Date();
-    const activeBooking = await Booking.findOne({
-      seat_id: id,
-      status: 'active',
-      start_time: { $lte: now },
-      end_time: { $gt: now }
-    }).populate('user_id', 'name');
-
-    const formattedSeat = {
-      id: seat._id,
-      building: seat.building,
-      floor_hall: seat.floor_hall,
-      section: seat.section,
-      seat_number: seat.seat_number,
-      seat_type: seat.seat_type,
-      has_power: seat.has_power,
-      has_monitor: seat.has_monitor,
-      is_active: seat.is_active,
-      status: activeBooking ? 'occupied' : 'available',
-      occupied_by: activeBooking?.user_id._id || null,
-      occupied_until: activeBooking?.end_time || null,
-      occupied_by_name: activeBooking?.user_id.name || null,
-      created_at: seat.createdAt,
-      updated_at: seat.updatedAt
-    };
-
-    res.json({
-      message: 'Seat updated successfully',
-      seat: formattedSeat
-    });
-
-  } catch (error) {
-    console.error('Update seat error:', error);
-    
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({ 
-        error: 'Validation error',
-        details: Object.values(error.errors).map(e => e.message)
-      });
-    }
-    
-    res.status(500).json({ error: 'Failed to update seat' });
-  }
-};
-
-const deleteSeat = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Check if seat has any active bookings
-    const now = new Date();
-    const activeBookings = await Booking.find({
-      seat_id: id,
-      status: 'active',
-      end_time: { $gt: now }
-    });
-
-    if (activeBookings.length > 0) {
-      return res.status(400).json({ 
-        error: 'Cannot delete seat with active bookings' 
-      });
-    }
-
-    const seat = await Seat.findByIdAndDelete(id);
-
-    if (!seat) {
-      return res.status(404).json({ error: 'Seat not found' });
-    }
-
-    res.json({ message: 'Seat deleted successfully' });
-
-  } catch (error) {
-    console.error('Delete seat error:', error);
-    res.status(500).json({ error: 'Failed to delete seat' });
-  }
-};
-
-module.exports = {
-  getAllSeats,
-  getSeatById,
-  createSeat,
-  updateSeat,
-  deleteSeat
-};

@@ -53,41 +53,56 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
+  // FIXED: Use correct API URL from environment
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/api';
+
+  // FIXED: Prevent hydration mismatch by delaying initialization
   useEffect(() => {
-    setMounted(true);
+    const timer = setTimeout(() => {
+      setMounted(true);
+    }, 100); // Small delay to ensure client-side rendering
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!mounted) return;
+
     const initAuth = async () => {
       try {
-        // Only access localStorage on client side
-        if (typeof window !== 'undefined') {
-          const token = localStorage.getItem('token');
-          if (token) {
-            // In a real app, you'd validate the token with your backend
+        // Only access localStorage on client side after mount
+        const token = localStorage.getItem('token');
+        if (token) {
+          try {
             const userData = localStorage.getItem('user');
             if (userData) {
-              setUser(JSON.parse(userData));
+              const parsedUser = JSON.parse(userData);
+              setUser(parsedUser);
             }
+          } catch (parseError) {
+            console.error('Failed to parse user data:', parseError);
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
           }
         }
       } catch (error) {
         console.error('Failed to initialize auth:', error);
         // Clear invalid data
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('token');
-          localStorage.removeItem('user');
-        }
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
       } finally {
         setIsLoading(false);
       }
     };
 
     initAuth();
-  }, []);
+  }, [mounted]);
 
   const login = async (credentials: LoginCredentials): Promise<void> => {
     try {
       setIsLoading(true);
       
-      const response = await fetch('http://localhost:5001/api/auth/login', {
+      const response = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -96,14 +111,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({ error: 'Login failed' }));
         throw new Error(errorData.error || 'Login failed');
       }
 
       const data = await response.json();
       
       // Only access localStorage on client side
-      if (typeof window !== 'undefined') {
+      if (typeof window !== 'undefined' && mounted) {
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
       }
@@ -119,7 +134,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       setIsLoading(true);
       
-      const response = await fetch('http://localhost:5001/api/auth/register', {
+      const response = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -128,14 +143,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        const errorData = await response.json().catch(() => ({ error: 'Registration failed' }));
         throw new Error(errorData.error || 'Registration failed');
       }
 
       const responseData = await response.json();
       
       // Only access localStorage on client side
-      if (typeof window !== 'undefined') {
+      if (typeof window !== 'undefined' && mounted) {
         localStorage.setItem('token', responseData.token);
         localStorage.setItem('user', JSON.stringify(responseData.user));
       }
@@ -150,18 +165,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const logout = () => {
     setUser(null);
     // Only access localStorage on client side
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && mounted) {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
     }
   };
 
   const refreshProfile = async () => {
+    if (!mounted) return;
+    
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+      const token = localStorage.getItem('token');
       if (!token) return;
 
-      const response = await fetch('http://localhost:5001/api/auth/profile', {
+      const response = await fetch(`${API_URL}/auth/profile`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
@@ -170,9 +187,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (response.ok) {
         const data = await response.json();
         setUser(data.user);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('user', JSON.stringify(data.user));
-        }
+        localStorage.setItem('user', JSON.stringify(data.user));
       } else {
         logout();
       }
@@ -181,9 +196,23 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Prevent hydration mismatch by not rendering children until mounted
+  // FIXED: Show loading state until mounted to prevent hydration mismatch
   if (!mounted) {
-    return null;
+    return (
+      <AuthContext.Provider 
+        value={{
+          user: null,
+          isLoading: true,
+          isAuthenticated: false,
+          login: async () => {},
+          register: async () => {},
+          logout: () => {},
+          refreshProfile: async () => {},
+        }}
+      >
+        {children}
+      </AuthContext.Provider>
+    );
   }
 
   const value: AuthContextType = {
