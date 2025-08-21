@@ -1,179 +1,188 @@
-// library-seat-frontend/src/components/dashboard/BookingCard.tsx
 'use client';
 
 import { useState } from 'react';
-import Button from '../ui/Button';
+import { Booking } from '@/types/booking';
+import { CreateBreakData } from '@/types/break';
 import Card from '../ui/Card';
-import CreateBreakModal from '../breaks/CreateBreakModal';
-import { Booking, BOOKING_STATUS } from '../../types/booking';
-import { CreateBreakData } from '../../types/break';
-import { getSeatDisplayName, getLocationDisplayName } from '../../utils/libraryStructure';
+import Button from '../ui/Button';
+import { getSeatDisplayName, BOOKING_STATUS } from '../../utils/libraryStructure';
 
 interface BookingCardProps {
   booking: Booking;
-  onCancel?: (id: number) => Promise<void>;
-  onCreateBreak?: (breakData: CreateBreakData) => Promise<void>;
+  onCancel: (bookingId: number) => void;
+  onCreateBreak: (breakData: CreateBreakData) => void;
 }
 
 export default function BookingCard({ booking, onCancel, onCreateBreak }: BookingCardProps) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [showBreakModal, setShowBreakModal] = useState(false);
+  const [showBreakForm, setShowBreakForm] = useState(false);
+  const [breakStartTime, setBreakStartTime] = useState('');
+  const [breakEndTime, setBreakEndTime] = useState('');
+  const [breakNotes, setBreakNotes] = useState('');
+  const [isCreatingBreak, setIsCreatingBreak] = useState(false);
 
-  const handleCancel = async () => {
-    if (!onCancel) return;
-    if (!confirm('Are you sure you want to cancel this booking?')) return;
-    
-    setIsLoading(true);
-    try {
-      await onCancel(booking.id);
-    } catch (error) {
-      console.error('Failed to cancel booking:', error);
-    } finally {
-      setIsLoading(false);
+  const handleCancel = () => {
+    if (confirm('Are you sure you want to cancel this booking?')) {
+      onCancel(booking.id);
     }
   };
 
-  const handleCreateBreak = async (breakData: CreateBreakData) => {
-    if (!onCreateBreak) return;
+  const handleCreateBreak = async () => {
+    if (!breakStartTime || !breakEndTime) return;
     
+    setIsCreatingBreak(true);
     try {
-      await onCreateBreak(breakData);
+      await onCreateBreak({
+        booking_id: booking.id,
+        break_start_time: breakStartTime,
+        break_end_time: breakEndTime,
+        notes: breakNotes
+      });
+      setShowBreakForm(false);
+      setBreakStartTime('');
+      setBreakEndTime('');
+      setBreakNotes('');
     } catch (error) {
       console.error('Failed to create break:', error);
-      throw error; // Re-throw to let modal handle the error
+    } finally {
+      setIsCreatingBreak(false);
     }
   };
 
-  const status = BOOKING_STATUS[booking.status];
-  const seatName = getSeatDisplayName(booking);
-  const locationName = getLocationDisplayName(booking.building, booking.floor_hall);
+  const formatDateTime = (dateString: string) => {
+    return new Date(dateString).toLocaleString();
+  };
+
+  const getStatusInfo = () => {
+    return BOOKING_STATUS[booking.status] || { 
+      label: booking.status, 
+      color: 'bg-gray-500', 
+      description: '' 
+    };
+  };
+
+  const statusInfo = getStatusInfo();
   
-  const now = new Date();
-  const startTime = new Date(booking.start_time);
-  const endTime = new Date(booking.end_time);
-  
+  // FIXED: Use the single object parameter version
+  const seatDisplayName = getSeatDisplayName({
+    building: booking.building,
+    floor_hall: booking.floor_hall,
+    section: booking.section,
+    seat_number: booking.seat_number
+  });
+
   const isActive = booking.status === 'active';
-  const isUpcoming = startTime > now;
-  const isOngoing = startTime <= now && endTime > now;
-  const canCancel = booking.status === 'active';
-  const canCreateBreak = isActive && isOngoing && onCreateBreak;
-
-  // Calculate time until booking starts/ends
-  const getTimeInfo = () => {
-    if (isUpcoming) {
-      const timeUntilStart = Math.ceil((startTime.getTime() - now.getTime()) / (60 * 1000));
-      return {
-        label: 'Starts in',
-        value: timeUntilStart < 60 ? `${timeUntilStart}m` : `${Math.ceil(timeUntilStart / 60)}h`,
-        color: 'text-blue-400'
-      };
-    } else if (isOngoing) {
-      const timeUntilEnd = Math.ceil((endTime.getTime() - now.getTime()) / (60 * 1000));
-      return {
-        label: 'Ends in',
-        value: timeUntilEnd < 60 ? `${timeUntilEnd}m` : `${Math.ceil(timeUntilEnd / 60)}h`,
-        color: 'text-green-400'
-      };
-    }
-    return null;
-  };
-
-  const timeInfo = getTimeInfo();
+  const now = new Date();
+  const endTime = new Date(booking.end_time);
+  const isCurrentlyActive = isActive && endTime > now;
 
   return (
-    <>
-      <Card className="bg-gray-800 border-gray-700 hover:border-gray-600 transition-colors">
+    <Card className="bg-gray-800 border-gray-700">
+      <div className="p-4">
         <div className="flex justify-between items-start mb-3">
-          <div>
-            <h3 className="text-lg font-semibold text-white">{seatName}</h3>
-            <p className="text-gray-300 text-sm">{locationName}</p>
-          </div>
-          <span className={`px-2 py-1 rounded-full text-xs font-medium ${status.color} text-white`}>
-            {status.label}
+          <h3 className="text-white font-semibold">{seatDisplayName}</h3>
+          <span className={`px-2 py-1 rounded-full text-xs font-medium text-white ${statusInfo.color}`}>
+            {statusInfo.label}
           </span>
         </div>
 
-        <div className="space-y-2 mb-4">
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Time:</span>
-            <span className="text-white">
-              {startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - 
-              {endTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
+        <div className="space-y-2 text-sm">
+          <div className="flex justify-between">
+            <span className="text-gray-400">Start:</span>
+            <span className="text-white">{formatDateTime(booking.start_time)}</span>
           </div>
-
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Date:</span>
-            <span className="text-white">
-              {startTime.toLocaleDateString()}
-            </span>
+          <div className="flex justify-between">
+            <span className="text-gray-400">End:</span>
+            <span className="text-white">{formatDateTime(booking.end_time)}</span>
           </div>
-
-          <div className="flex justify-between text-sm">
-            <span className="text-gray-400">Duration:</span>
-            <span className="text-white">
-              {Math.round((endTime.getTime() - startTime.getTime()) / (60 * 1000))} minutes
-            </span>
-          </div>
-
-          {timeInfo && (
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400">{timeInfo.label}:</span>
-              <span className={`font-medium ${timeInfo.color}`}>
-                {timeInfo.value}
-              </span>
-            </div>
-          )}
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-2">
-          {canCreateBreak && (
-            <Button
-              onClick={() => setShowBreakModal(true)}
-              className="flex-1 bg-green-600 hover:bg-green-700 text-sm py-2"
-            >
-              Create Break
-            </Button>
-          )}
-          
-          {canCancel && (
+        {showBreakForm ? (
+          <div className="mt-4 space-y-3">
+            <div>
+              <label className="block text-gray-300 text-sm font-medium mb-1">
+                Break Start Time
+              </label>
+              <input
+                type="datetime-local"
+                value={breakStartTime}
+                onChange={(e) => setBreakStartTime(e.target.value)}
+                min={booking.start_time.slice(0, 16)}
+                max={booking.end_time.slice(0, 16)}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-gray-300 text-sm font-medium mb-1">
+                Break End Time
+              </label>
+              <input
+                type="datetime-local"
+                value={breakEndTime}
+                onChange={(e) => setBreakEndTime(e.target.value)}
+                min={breakStartTime || booking.start_time.slice(0, 16)}
+                max={booking.end_time.slice(0, 16)}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-gray-300 text-sm font-medium mb-1">
+                Notes (optional)
+              </label>
+              <textarea
+                value={breakNotes}
+                onChange={(e) => setBreakNotes(e.target.value)}
+                placeholder="Add any notes for break takers..."
+                rows={2}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            
+            <div className="flex gap-2">
+              <Button
+                onClick={() => setShowBreakForm(false)}
+                variant="outline"
+                size="sm"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleCreateBreak}
+                disabled={!breakStartTime || !breakEndTime || isCreatingBreak}
+                loading={isCreatingBreak}
+                variant="primary"
+                size="sm"
+                className="flex-1"
+              >
+                Create Break
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-2 mt-4">
+            {isCurrentlyActive && (
+              <Button
+                onClick={() => setShowBreakForm(true)}
+                variant="outline"
+                size="sm"
+                className="flex-1 border-green-600 text-green-400 hover:bg-green-600 hover:text-white"
+              >
+                Create Break
+              </Button>
+            )}
             <Button
               onClick={handleCancel}
-              disabled={isLoading}
               variant="outline"
-              className="flex-1 border-red-600 text-red-400 hover:bg-red-900 text-sm py-2"
+              size="sm"
+              className="flex-1 border-red-600 text-red-400 hover:bg-red-600 hover:text-white"
             >
-              {isLoading ? 'Cancelling...' : 'Cancel'}
+              Cancel
             </Button>
-          )}
-        </div>
-
-        {/* Break Creation Help Text */}
-        {canCreateBreak && (
-          <div className="mt-3 p-2 bg-green-900 border border-green-700 rounded-lg">
-            <p className="text-green-300 text-xs">
-              💡 Going on a break? Let others use your seat temporarily!
-            </p>
           </div>
         )}
-
-        <div className="mt-3 pt-3 border-t border-gray-700">
-          <p className="text-gray-400 text-xs">
-            Booked {new Date(booking.created_at).toLocaleString()}
-          </p>
-        </div>
-      </Card>
-
-      {/* Break Creation Modal */}
-      {showBreakModal && (
-        <CreateBreakModal
-          isOpen={showBreakModal}
-          onClose={() => setShowBreakModal(false)}
-          booking={booking}
-          onCreateBreak={handleCreateBreak}
-        />
-      )}
-    </>
+      </div>
+    </Card>
   );
 }

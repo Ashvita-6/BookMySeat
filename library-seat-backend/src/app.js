@@ -1,4 +1,3 @@
-// library-seat-backend/src/app.js
 require('dotenv').config();
 
 const express = require('express');
@@ -25,6 +24,7 @@ const io = new SocketServer(server, {
 
 // Make io accessible throughout the app
 app.locals.io = io;
+global.io = io; // Make available for cleanup jobs
 
 // Security middleware
 app.use(helmet());
@@ -146,6 +146,18 @@ try {
 }
 
 console.log('Route loading complete!');
+
+// FIXED: Initialize background cleanup jobs
+try {
+  const { initBreakCleanupJob } = require('./jobs/breakCleanup');
+  const { initBookingCleanupJob } = require('./jobs/bookingCleanup');
+  
+  initBreakCleanupJob();
+  initBookingCleanupJob();
+  console.log('✓ Cleanup jobs initialized');
+} catch (error) {
+  console.error('❌ Failed to initialize cleanup jobs:', error.message);
+}
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {

@@ -1,4 +1,7 @@
-// library-seat-frontend/src/types/break.ts
+// ==================================================
+// UPDATED: library-seat-frontend/src/types/break.ts
+// ==================================================
+
 import { Booking } from './booking';
 
 export interface Break {

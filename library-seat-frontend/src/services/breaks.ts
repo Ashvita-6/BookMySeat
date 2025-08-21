@@ -1,6 +1,9 @@
-// library-seat-frontend/src/services/breaks.ts
+// ==================================================
+// FIXED: library-seat-frontend/src/services/breaks.ts
+// ==================================================
+
 import { api } from './api';
-import { Break, CreateBreakData, BreakFilters, BreakBooking } from '@/types/break';
+import { Break, CreateBreakData, BreakFilters } from '@/types/break';
 
 export class BreakService {
   async createBreak(breakData: CreateBreakData): Promise<Break> {
@@ -15,86 +18,114 @@ export class BreakService {
   async getAvailableBreaks(filters?: BreakFilters): Promise<Break[]> {
     try {
       const response = await api.breaks.getAvailable(filters);
-      return response.breaks;
+      return response.breaks || [];
     } catch (error) {
       throw error;
     }
   }
 
-  async getMyBreaks(type?: 'created' | 'taken' | 'all'): Promise<Break[]> {
+  // FIXED: Use the correct method name from API
+  async getMyBreaks(): Promise<Break[]> {
     try {
-      const response = await api.breaks.getMyBreaks(type);
-      return response.breaks;
+      const response = await api.breaks.getMyBreaks(); // Using getMyBreaks instead of getMy
+      return response.breaks || [];
     } catch (error) {
       throw error;
     }
   }
 
-  async bookBreak(id: number): Promise<BreakBooking> {
+  async bookBreak(breakId: number): Promise<Break> {
     try {
-      const response = await api.breaks.book(id);
-      return response.booking;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  async cancelBreak(id: number): Promise<Break> {
-    try {
-      const response = await api.breaks.cancel(id);
+      const response = await api.breaks.book(breakId);
       return response.break;
     } catch (error) {
       throw error;
     }
   }
 
-  // Utility methods
+  async cancelBreak(breakId: number): Promise<Break> {
+    try {
+      const response = await api.breaks.cancel(breakId);
+      return response.break;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  // Utility methods for break management
   getActiveBreaks(breaks: Break[]): Break[] {
     const now = new Date();
     return breaks.filter(breakItem => 
+      breakItem.status === 'active' && new Date(breakItem.break_end_time) > now
+    );
+  }
+
+  getUpcomingBreaks(breaks: Break[]): Break[] {
+    const now = new Date();
+    return breaks.filter(breakItem => 
+      breakItem.status === 'active' && new Date(breakItem.break_start_time) > now
+    );
+  }
+
+  getCurrentBreaks(breaks: Break[]): Break[] {
+    const now = new Date();
+    return breaks.filter(breakItem => 
       breakItem.status === 'active' && 
+      new Date(breakItem.break_start_time) <= now && 
       new Date(breakItem.break_end_time) > now
     );
   }
 
-  getMyCreatedBreaks(breaks: Break[]): Break[] {
-    return breaks.filter(breakItem => breakItem.is_my_break === true);
+  calculateDuration(startTime: string, endTime: string): number {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    return Math.floor((end.getTime() - start.getTime()) / (1000 * 60)); // duration in minutes
   }
 
-  getMyTakenBreaks(breaks: Break[]): Break[] {
-    return breaks.filter(breakItem => breakItem.is_my_break === false && breakItem.taken_by);
-  }
-
-  formatDuration(minutes: number): string {
-    if (minutes < 60) {
-      return `${minutes}m`;
-    }
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
-  }
-
-  formatTimeRemaining(endTime: string): string {
+  calculateTimeRemaining(endTime: string): number {
     const now = new Date();
     const end = new Date(endTime);
     const diffMs = end.getTime() - now.getTime();
-    
-    if (diffMs <= 0) return 'Expired';
-    
-    const minutes = Math.ceil(diffMs / (60 * 1000));
-    return this.formatDuration(minutes);
+    return diffMs > 0 ? Math.floor(diffMs / (1000 * 60)) : 0; // remaining minutes
   }
 
   isBreakAvailable(breakItem: Break): boolean {
     const now = new Date();
-    return breakItem.status === 'active' && 
-           new Date(breakItem.break_start_time) <= now && 
-           new Date(breakItem.break_end_time) > now;
+    return (
+      breakItem.status === 'active' &&
+      new Date(breakItem.break_start_time) <= now &&
+      new Date(breakItem.break_end_time) > now &&
+      !breakItem.taken_by
+    );
   }
 
-  canCancelBreak(breakItem: Break): boolean {
-    return breakItem.status === 'active' && 
-           new Date(breakItem.break_start_time) > new Date();
+  formatBreakTime(startTime: string, endTime: string): string {
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+    
+    const formatTime = (date: Date) => {
+      return date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+    };
+    
+    const formatDate = (date: Date) => {
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      });
+    };
+    
+    const startDate = formatDate(start);
+    const endDate = formatDate(end);
+    
+    if (startDate === endDate) {
+      return `${startDate} ${formatTime(start)} - ${formatTime(end)}`;
+    } else {
+      return `${startDate} ${formatTime(start)} - ${endDate} ${formatTime(end)}`;
+    }
   }
 }
 

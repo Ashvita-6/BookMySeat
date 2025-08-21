@@ -1,4 +1,3 @@
-// library-seat-frontend/src/utils/libraryStructure.ts
 import { LibraryStructure } from '@/types/seat';
 
 export const LIBRARY_STRUCTURE: LibraryStructure = {
@@ -41,10 +40,10 @@ export const LIBRARY_STRUCTURE: LibraryStructure = {
     },
     hall_3: {
       label: 'Hall 3',
-      capacity: 70,
+      capacity: 50,
       sections: {
-        A: { type: 'individual', count: 35 },
-        B: { type: 'individual', count: 35 }
+        A: { type: 'individual', count: 25 },
+        B: { type: 'individual', count: 25 }
       }
     }
   }
@@ -121,48 +120,81 @@ export const BOOKING_STATUS = {
   }
 } as const;
 
-export const getSeatDisplayName = (seat: { 
-  building: string; 
-  floor_hall: string; 
-  section: string; 
-  seat_number: string; 
-}): string => {
-  // Handle undefined or null values
-  if (!seat.building || !seat.floor_hall || !seat.section || !seat.seat_number) {
-    return `Seat-${seat.section || '?'}${seat.seat_number || '?'}`;
-  }
+export const BREAK_STATUS = {
+  active: { label: 'Available', color: 'bg-green-500' },
+  taken: { label: 'Taken', color: 'bg-blue-500' },
+  expired: { label: 'Expired', color: 'bg-gray-500' },
+  cancelled: { label: 'Cancelled', color: 'bg-red-500' },
+} as const;
 
-  const buildingPrefix = seat.building === 'main' ? 'M' : 'R';
+// FIXED: Two different function signatures for different use cases
+// For objects with all properties (Booking, Break, Seat with location info)
+export const getSeatDisplayName = (item: {
+  building: 'main' | 'reading';
+  floor_hall: string;
+  section: string;
+  seat_number: string;
+}): string => {
+  const buildingName = item.building === 'main' ? 'Main Library' : 'Reading Room';
   
-  let floorHallPrefix = '';
-  if (seat.building === 'main') {
-    floorHallPrefix = seat.floor_hall === 'ground_floor' ? 'G' : 'F1';
+  let floorHallName = '';
+  if (item.building === 'main') {
+    floorHallName = item.floor_hall === 'ground_floor' ? 'Ground Floor' : 'First Floor';
   } else {
-    // Safely handle reading room halls
-    floorHallPrefix = seat.floor_hall ? seat.floor_hall.replace('hall_', 'H') : 'H?';
+    const hallNum = item.floor_hall.replace('hall_', '');
+    floorHallName = `Hall ${hallNum}`;
   }
   
-  return `${buildingPrefix}-${floorHallPrefix}-${seat.section}${seat.seat_number}`;
+  return `${buildingName} - ${floorHallName} - ${item.section}${item.seat_number}`;
 };
 
-export const getLocationDisplayName = (building: string, floor_hall: string): string => {
-  // Handle undefined or null values
-  if (!building || !floor_hall) {
-    return 'Unknown Location';
-  }
+// For individual parameters
+export const getSeatDisplayNameFromParams = (
+  building: 'main' | 'reading', 
+  floor_hall: string, 
+  section: string, 
+  seat_number: string
+): string => {
+  return getSeatDisplayName({ building, floor_hall, section, seat_number });
+};
 
+export const getLocationDisplayName = (building: 'main' | 'reading', floor_hall: string): string => {
   const buildingName = building === 'main' ? 'Main Library' : 'Reading Room';
   
-  // Type-safe access to LIBRARY_STRUCTURE
+  let floorHallName = '';
   if (building === 'main') {
-    const mainStructure = LIBRARY_STRUCTURE.main;
-    const locationName = mainStructure[floor_hall as keyof typeof mainStructure]?.label || floor_hall;
-    return `${buildingName} - ${locationName}`;
-  } else if (building === 'reading') {
-    const readingStructure = LIBRARY_STRUCTURE.reading;
-    const locationName = readingStructure[floor_hall as keyof typeof readingStructure]?.label || floor_hall;
-    return `${buildingName} - ${locationName}`;
+    floorHallName = floor_hall === 'ground_floor' ? 'Ground Floor' : 'First Floor';
+  } else {
+    const hallNum = floor_hall.replace('hall_', '');
+    floorHallName = `Hall ${hallNum}`;
   }
   
-  return `${buildingName} - ${floor_hall}`;
+  return `${buildingName} - ${floorHallName}`;
+};
+
+export const formatDuration = (minutes: number): string => {
+  if (minutes < 60) {
+    return `${minutes} min`;
+  } else {
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    if (remainingMinutes === 0) {
+      return `${hours}h`;
+    } else {
+      return `${hours}h ${remainingMinutes}m`;
+    }
+  }
+};
+
+export const formatTimeRemaining = (endTime: string): string => {
+  const now = new Date();
+  const end = new Date(endTime);
+  const diffMs = end.getTime() - now.getTime();
+  
+  if (diffMs <= 0) {
+    return 'Expired';
+  }
+  
+  const minutes = Math.floor(diffMs / (1000 * 60));
+  return formatDuration(minutes);
 };

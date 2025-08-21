@@ -1,4 +1,4 @@
-// library-seat-frontend/src/app/dashboard/page.tsx
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -31,6 +31,12 @@ export default function DashboardPage() {
   const [selectedFloorHall, setSelectedFloorHall] = useState<string>('ground_floor');
   const [selectedSeatType, setSelectedSeatType] = useState<string>('all');
   const [error, setError] = useState('');
+  const [mounted, setMounted] = useState(false); // Fix hydration error
+
+  // Fix hydration error - only render after component mounts
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -38,43 +44,91 @@ export default function DashboardPage() {
       return;
     }
 
-    if (isAuthenticated) {
+    if (isAuthenticated && mounted) { // Only load data after mounting
       loadData();
     }
-  }, [authLoading, isAuthenticated, router]);
+  }, [authLoading, isAuthenticated, router, mounted]);
 
   // Reset floor/hall when building changes
   useEffect(() => {
-    const floorHallOptions = getFloorHallOptions(selectedBuilding);
-    if (floorHallOptions.length > 0) {
-      setSelectedFloorHall(floorHallOptions[0].value);
+    if (mounted) { // Only run after mounting
+      const floorHallOptions = getFloorHallOptions(selectedBuilding);
+      if (floorHallOptions.length > 0) {
+        setSelectedFloorHall(floorHallOptions[0].value);
+      }
     }
-  }, [selectedBuilding]);
+  }, [selectedBuilding, mounted]);
+
+  // Reload seats when location changes
+  useEffect(() => {
+    if (isAuthenticated && mounted) {
+      loadSeats();
+    }
+  }, [selectedBuilding, selectedFloorHall, isAuthenticated, mounted]);
 
   const loadData = async () => {
     try {
       setIsLoading(true);
-      const [seatsResponse, bookingsResponse] = await Promise.all([
-        api.seats.getAll(),
+      setError('');
+      
+      const [bookingsResponse] = await Promise.all([
         api.bookings.getMyBookings()
       ]);
-      
-      setSeats(seatsResponse.seats);
       
       // Filter active bookings
       const activeBookings = bookingsResponse.bookings.filter((booking: Booking) => 
         booking.status === 'active'
       );
       setMyBookings(activeBookings);
+      
+      // Load seats separately
+      await loadSeats();
     } catch (err: any) {
       setError(err.message || 'Failed to load data');
+      console.error('Load data error:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const loadSeats = async () => {
+    try {
+      console.log(`🔍 Loading seats for: ${selectedBuilding} - ${selectedFloorHall}`);
+      
+      const params = {
+        building: selectedBuilding,
+        floor_hall: selectedFloorHall,
+        limit: '1000' // Ensure we get all seats
+      };
+      
+      console.log('API params:', params);
+      
+      const seatsResponse = await api.seats.getAll(params);
+      console.log(`📊 Received ${seatsResponse.seats?.length || 0} seats`);
+      console.log('API response:', seatsResponse);
+      
+      setSeats(seatsResponse.seats || []);
+      
+      // Debug specific halls
+      if (selectedBuilding === 'reading' && (selectedFloorHall === 'hall_2' || selectedFloorHall === 'hall_3')) {
+        console.log(`🐛 Debug ${selectedFloorHall}:`, {
+          building: selectedBuilding,
+          floor_hall: selectedFloorHall,
+          seats_count: seatsResponse.seats?.length || 0,
+          sample_seats: seatsResponse.seats?.slice(0, 3).map((s: Seat) => `${s.building}-${s.floor_hall}-${s.section}${s.seat_number}`)
+        });
+      }
+      
+    } catch (err: any) {
+      console.error('Load seats error:', err);
+      setError(err.message || 'Failed to load seats');
+      setSeats([]);
+    }
+  };
+
   const handleBookSeat = async (seatId: number, startTime: string, endTime: string) => {
     try {
+      setError('');
       await api.bookings.create({
         seat_id: seatId,
         start_time: startTime,
@@ -90,6 +144,7 @@ export default function DashboardPage() {
 
   const handleCancelBooking = async (bookingId: number) => {
     try {
+      setError('');
       await api.bookings.cancel(bookingId);
       await loadData();
     } catch (err: any) {
@@ -99,6 +154,7 @@ export default function DashboardPage() {
 
   const handleCreateBreak = async (breakData: CreateBreakData) => {
     try {
+      setError('');
       await breakService.createBreak(breakData);
       // Optionally reload data to reflect changes
       await loadData();
@@ -147,6 +203,11 @@ export default function DashboardPage() {
 
   const floorHallOptions = getFloorHallOptions(selectedBuilding);
 
+  // Prevent hydration error by not rendering until mounted
+  if (!mounted) {
+    return null;
+  }
+
   if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
@@ -166,40 +227,33 @@ export default function DashboardPage() {
           <div className="flex gap-3">
             <Button
               onClick={() => router.push('/breaks')}
-              className="bg-green-600 hover:bg-green-700"
+              variant="outline"
+              className="border-blue-600 text-blue-400 hover:bg-blue-600 hover:text-white"
             >
               Available Breaks
             </Button>
             <Button
-              onClick={() => router.push('/my-breaks')}
-              variant="outline"
-              className="border-blue-600 text-blue-400 hover:bg-blue-900"
+              onClick={() => router.push('/admin')}
+              variant="secondary"
+              className="bg-purple-600 hover:bg-purple-700"
             >
-              My Breaks
+              Admin Panel
             </Button>
-            {user?.role === 'admin' && (
-              <Button
-                onClick={() => router.push('/admin')}
-                variant="outline"
-                className="border-gray-600 text-gray-300 hover:bg-gray-700"
-              >
-                Admin Panel
-              </Button>
-            )}
           </div>
         </div>
 
         {/* Error Display */}
         {error && (
-          <Card className="bg-red-900 border-red-700 mb-6">
-            <p className="text-red-300">{error}</p>
-            <Button
+          <div className="mb-6 bg-red-900 border border-red-700 text-red-100 px-4 py-3 rounded-lg">
+            <strong className="font-bold">Error: </strong>
+            <span>{error}</span>
+            <button 
               onClick={() => setError('')}
-              className="mt-2 bg-red-700 hover:bg-red-600 text-sm"
+              className="float-right font-bold text-red-200 hover:text-white"
             >
-              Dismiss
-            </Button>
-          </Card>
+              ×
+            </button>
+          </div>
         )}
 
         {/* My Active Bookings */}
@@ -219,32 +273,14 @@ export default function DashboardPage() {
           </Card>
         )}
 
-        {/* Break Information Section */}
+        {/* Break Information */}
         <Card className="bg-gray-800 border-gray-700 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-white">Break System</h2>
-            <div className="flex gap-2">
-              <Button
-                onClick={() => router.push('/breaks')}
-                className="bg-green-600 hover:bg-green-700 text-sm"
-              >
-                Browse Breaks
-              </Button>
-              <Button
-                onClick={() => router.push('/my-breaks')}
-                variant="outline"
-                className="border-blue-600 text-blue-400 hover:bg-blue-900 text-sm"
-              >
-                Manage My Breaks
-              </Button>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
+          <h2 className="text-xl font-semibold text-white mb-4">📋 Break System</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-gray-700 p-4 rounded-lg">
               <h3 className="font-medium text-white mb-2">🎯 Create a Break</h3>
               <ul className="text-gray-300 space-y-1">
-                <li>• Going on a break? Let others use your seat</li>
+                <li>• Let others use your seat</li>
                 <li>• Duration: 30 minutes to 5 hours</li>
                 <li>• Must be during your active booking</li>
                 <li>• Add notes for break takers</li>
@@ -317,6 +353,19 @@ export default function DashboardPage() {
                 ))}
               </select>
             </div>
+          </div>
+
+          {/* Debug Information */}
+          <div className="mb-4 p-3 bg-gray-700 rounded-lg">
+            <p className="text-gray-300 text-sm">
+              📊 <strong>Debug Info:</strong> {selectedBuilding} → {selectedFloorHall} → 
+              Total Seats: {seats.length} → Filtered: {filteredSeats.length}
+            </p>
+            {filteredSeats.length === 0 && seats.length > 0 && (
+              <p className="text-yellow-400 text-sm mt-1">
+                ⚠️ Seats loaded but filtered out. Check filter criteria.
+              </p>
+            )}
           </div>
 
           {/* Seat Grid */}
