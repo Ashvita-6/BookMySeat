@@ -1,3 +1,4 @@
+// library-seat-frontend/src/components/dashboard/BookingCard.tsx
 'use client';
 
 import { useState } from 'react';
@@ -62,7 +63,7 @@ export default function BookingCard({ booking, onCancel, onCreateBreak }: Bookin
 
   const statusInfo = getStatusInfo();
   
-  // FIXED: Use the single object parameter version
+  // FIXED: Ensure all required properties exist before calling getSeatDisplayName
   const seatDisplayName = getSeatDisplayName({
     building: booking.building,
     floor_hall: booking.floor_hall,
@@ -97,88 +98,73 @@ export default function BookingCard({ booking, onCancel, onCreateBreak }: Bookin
         </div>
 
         {showBreakForm ? (
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 space-y-3 border-t border-gray-600 pt-4">
+            <h4 className="text-white font-medium">Create Break</h4>
+            
             <div>
-              <label className="block text-gray-300 text-sm font-medium mb-1">
-                Break Start Time
-              </label>
+              <label className="block text-gray-300 text-sm mb-1">Start Time</label>
               <input
                 type="datetime-local"
                 value={breakStartTime}
                 onChange={(e) => setBreakStartTime(e.target.value)}
-                min={booking.start_time.slice(0, 16)}
-                max={booking.end_time.slice(0, 16)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
               />
             </div>
             
             <div>
-              <label className="block text-gray-300 text-sm font-medium mb-1">
-                Break End Time
-              </label>
+              <label className="block text-gray-300 text-sm mb-1">End Time</label>
               <input
                 type="datetime-local"
                 value={breakEndTime}
                 onChange={(e) => setBreakEndTime(e.target.value)}
-                min={breakStartTime || booking.start_time.slice(0, 16)}
-                max={booking.end_time.slice(0, 16)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
               />
             </div>
             
             <div>
-              <label className="block text-gray-300 text-sm font-medium mb-1">
-                Notes (optional)
-              </label>
+              <label className="block text-gray-300 text-sm mb-1">Notes (optional)</label>
               <textarea
                 value={breakNotes}
                 onChange={(e) => setBreakNotes(e.target.value)}
-                placeholder="Add any notes for break takers..."
+                placeholder="Add any notes about your break..."
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded text-white text-sm"
                 rows={2}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             
-            <div className="flex gap-2">
+            <div className="flex space-x-2">
+              <Button
+                onClick={handleCreateBreak}
+                disabled={!breakStartTime || !breakEndTime || isCreatingBreak}
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
+              >
+                {isCreatingBreak ? 'Creating...' : 'Create Break'}
+              </Button>
               <Button
                 onClick={() => setShowBreakForm(false)}
                 variant="outline"
-                size="sm"
                 className="flex-1"
               >
                 Cancel
               </Button>
-              <Button
-                onClick={handleCreateBreak}
-                disabled={!breakStartTime || !breakEndTime || isCreatingBreak}
-                loading={isCreatingBreak}
-                variant="primary"
-                size="sm"
-                className="flex-1"
-              >
-                Create Break
-              </Button>
             </div>
           </div>
         ) : (
-          <div className="flex gap-2 mt-4">
+          <div className="mt-4 flex space-x-2">
             {isCurrentlyActive && (
               <Button
                 onClick={() => setShowBreakForm(true)}
-                variant="outline"
-                size="sm"
-                className="flex-1 border-green-600 text-green-400 hover:bg-green-600 hover:text-white"
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
               >
-                Create Break
+                Take Break
               </Button>
             )}
             <Button
               onClick={handleCancel}
               variant="outline"
-              size="sm"
               className="flex-1 border-red-600 text-red-400 hover:bg-red-600 hover:text-white"
             >
-              Cancel
+              Cancel Booking
             </Button>
           </div>
         )}

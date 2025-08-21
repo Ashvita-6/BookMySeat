@@ -35,21 +35,11 @@ export const API_ENDPOINTS = {
 export const SEAT_TYPES = {
   individual: { label: 'Individual', color: 'bg-blue-500' },
   group: { label: 'Group Study', color: 'bg-green-500' },
-  quiet: { label: 'Quiet Zone', color: 'bg-purple-500' },
   computer: { label: 'Computer Station', color: 'bg-orange-500' },
 } as const;
 
+// UPDATED: Simplified booking status without WiFi
 export const BOOKING_STATUS = {
-  pending: { 
-    label: 'Pending WiFi Confirmation', 
-    color: 'bg-yellow-500',
-    description: 'Connect to library WiFi to confirm'
-  },
-  confirmed: { 
-    label: 'Confirmed', 
-    color: 'bg-blue-500',
-    description: 'Booking confirmed via WiFi'
-  },
   active: { 
     label: 'Active', 
     color: 'bg-green-500',
@@ -64,11 +54,6 @@ export const BOOKING_STATUS = {
     label: 'Cancelled', 
     color: 'bg-red-500',
     description: 'Manually cancelled'
-  },
-  auto_cancelled: { 
-    label: 'Auto-Cancelled', 
-    color: 'bg-red-600',
-    description: 'Cancelled due to no WiFi confirmation'
   }
 } as const;
 
@@ -80,7 +65,7 @@ export const BREAK_STATUS = {
 } as const;
 
 export const SOCKET_EVENTS = {
-  // Existing seat events
+  // Seat events
   JOIN_SEAT: 'joinSeat',
   LEAVE_SEAT: 'leaveSeat',
   GET_SEAT_STATUS: 'getSeatStatus',
@@ -90,10 +75,10 @@ export const SOCKET_EVENTS = {
   SEAT_STATUS: 'seatStatus',
   SEAT_LIST_UPDATE: 'seatListUpdate',
   
-  // Existing booking events
+  // Booking events
   BOOKING_UPDATE: 'bookingUpdate',
   
-  // New break events
+  // Break events
   BREAK_CREATED: 'breakCreated',
   BREAK_TAKEN: 'breakTaken',
   BREAK_CANCELLED: 'breakCancelled',

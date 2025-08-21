@@ -17,16 +17,14 @@ export interface Seat {
   updated_at: string;
 }
 
+// UPDATED: Simplified booking interface without WiFi fields
 export interface Booking {
   id: number;
   user_id: number;
   seat_id: number;
   start_time: string;
   end_time: string;
-  status: 'pending' | 'confirmed' | 'active' | 'completed' | 'cancelled' | 'auto_cancelled';
-  confirmation_deadline?: string;
-  confirmed_at?: string;
-  wifi_mac_address?: string;
+  status: 'active' | 'completed' | 'cancelled';
   building: 'main' | 'reading';
   floor_hall: string;
   section: string;

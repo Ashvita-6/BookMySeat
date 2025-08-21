@@ -1,140 +1,65 @@
+// library-seat-frontend/src/utils/libraryStructure.ts
 import { LibraryStructure } from '@/types/seat';
 
+// UPDATED: Library structure with correct seat counts as per requirements
 export const LIBRARY_STRUCTURE: LibraryStructure = {
   main: {
     ground_floor: {
       label: 'Ground Floor',
-      capacity: 50,
+      capacity: 30,
       sections: {
-        A: { type: 'individual', count: 18 },
-        B: { type: 'individual', count: 17 },
-        C: { type: 'group', count: 15 }
+        A: { type: 'individual', count: 15 },
+        B: { type: 'individual', count: 15 }
       }
     },
     first_floor: {
       label: 'First Floor',
-      capacity: 50,
+      capacity: 60,
       sections: {
-        A: { type: 'individual', count: 15 },
-        B: { type: 'individual', count: 15 },
-        C: { type: 'computer', count: 20 }
+        A: { type: 'individual', count: 30 },
+        B: { type: 'computer', count: 30 }
       }
     }
   },
   reading: {
     hall_1: {
       label: 'Hall 1',
-      capacity: 70,
+      capacity: 50,
       sections: {
-        A: { type: 'individual', count: 35 },
-        B: { type: 'individual', count: 35 }
+        A: { type: 'individual', count: 50 }
       }
     },
     hall_2: {
       label: 'Hall 2',
       capacity: 50,
       sections: {
-        A: { type: 'individual', count: 25 },
-        B: { type: 'individual', count: 25 }
+        A: { type: 'individual', count: 50 }
       }
     },
     hall_3: {
       label: 'Hall 3',
       capacity: 50,
       sections: {
-        A: { type: 'individual', count: 25 },
-        B: { type: 'individual', count: 25 }
+        A: { type: 'individual', count: 50 }
       }
     }
   }
 };
 
-export const BUILDING_OPTIONS = [
-  { value: 'main', label: 'Main Library' },
-  { value: 'reading', label: 'Reading Room' }
-];
+// UTILITY FUNCTIONS (the missing ones you were looking for)
 
-export const getFloorHallOptions = (building: 'main' | 'reading') => {
-  if (building === 'main') {
-    return [
-      { value: 'ground_floor', label: 'Ground Floor' },
-      { value: 'first_floor', label: 'First Floor' }
-    ];
-  } else {
-    return [
-      { value: 'hall_1', label: 'Hall 1' },
-      { value: 'hall_2', label: 'Hall 2' },
-      { value: 'hall_3', label: 'Hall 3' }
-    ];
-  }
-};
-
-export const SEAT_TYPES = {
-  individual: { 
-    label: 'Individual Study', 
-    color: 'bg-blue-500',
-    icon: '👤'
-  },
-  group: { 
-    label: 'Group Study', 
-    color: 'bg-green-500',
-    icon: '👥'
-  },
-  computer: { 
-    label: 'Computer Station', 
-    color: 'bg-orange-500',
-    icon: '💻'
-  }
-} as const;
-
-export const BOOKING_STATUS = {
-  pending: { 
-    label: 'Pending WiFi Confirmation', 
-    color: 'bg-yellow-500',
-    description: 'Connect to library WiFi to confirm'
-  },
-  confirmed: { 
-    label: 'Confirmed', 
-    color: 'bg-blue-500',
-    description: 'Booking confirmed via WiFi'
-  },
-  active: { 
-    label: 'Active', 
-    color: 'bg-green-500',
-    description: 'Currently in use'
-  },
-  completed: { 
-    label: 'Completed', 
-    color: 'bg-gray-500',
-    description: 'Booking completed'
-  },
-  cancelled: { 
-    label: 'Cancelled', 
-    color: 'bg-red-500',
-    description: 'Manually cancelled'
-  },
-  auto_cancelled: { 
-    label: 'Auto-Cancelled', 
-    color: 'bg-red-600',
-    description: 'Cancelled due to no WiFi confirmation'
-  }
-} as const;
-
-export const BREAK_STATUS = {
-  active: { label: 'Available', color: 'bg-green-500' },
-  taken: { label: 'Taken', color: 'bg-blue-500' },
-  expired: { label: 'Expired', color: 'bg-gray-500' },
-  cancelled: { label: 'Cancelled', color: 'bg-red-500' },
-} as const;
-
-// FIXED: Two different function signatures for different use cases
 // For objects with all properties (Booking, Break, Seat with location info)
 export const getSeatDisplayName = (item: {
-  building: 'main' | 'reading';
-  floor_hall: string;
-  section: string;
-  seat_number: string;
+  building?: 'main' | 'reading';
+  floor_hall?: string;
+  section?: string;
+  seat_number?: string;
 }): string => {
+  // Defensive check for undefined properties
+  if (!item || !item.building || !item.floor_hall || !item.section || !item.seat_number) {
+    return 'Unknown Location';
+  }
+
   const buildingName = item.building === 'main' ? 'Main Library' : 'Reading Room';
   
   let floorHallName = '';
@@ -150,15 +75,22 @@ export const getSeatDisplayName = (item: {
 
 // For individual parameters
 export const getSeatDisplayNameFromParams = (
-  building: 'main' | 'reading', 
-  floor_hall: string, 
-  section: string, 
-  seat_number: string
+  building?: 'main' | 'reading', 
+  floor_hall?: string, 
+  section?: string, 
+  seat_number?: string
 ): string => {
+  if (!building || !floor_hall || !section || !seat_number) {
+    return 'Unknown Location';
+  }
   return getSeatDisplayName({ building, floor_hall, section, seat_number });
 };
 
-export const getLocationDisplayName = (building: 'main' | 'reading', floor_hall: string): string => {
+export const getLocationDisplayName = (building?: 'main' | 'reading', floor_hall?: string): string => {
+  if (!building || !floor_hall) {
+    return 'Unknown Location';
+  }
+  
   const buildingName = building === 'main' ? 'Main Library' : 'Reading Room';
   
   let floorHallName = '';
@@ -198,3 +130,62 @@ export const formatTimeRemaining = (endTime: string): string => {
   const minutes = Math.floor(diffMs / (1000 * 60));
   return formatDuration(minutes);
 };
+
+// BUILDING AND SEAT TYPE OPTIONS
+
+export const BUILDING_OPTIONS = [
+  { value: 'main', label: 'Main Library' },
+  { value: 'reading', label: 'Reading Room' }
+];
+
+export const getFloorHallOptions = (building: 'main' | 'reading') => {
+  if (building === 'main') {
+    return [
+      { value: 'ground_floor', label: 'Ground Floor' },
+      { value: 'first_floor', label: 'First Floor' }
+    ];
+  } else {
+    return [
+      { value: 'hall_1', label: 'Hall 1' },
+      { value: 'hall_2', label: 'Hall 2' },
+      { value: 'hall_3', label: 'Hall 3' }
+    ];
+  }
+};
+
+export const SEAT_TYPES = {
+  individual: { 
+    label: 'Individual Study', 
+    color: 'bg-blue-500',
+    icon: '👤'
+  },
+  group: { 
+    label: 'Group Study', 
+    color: 'bg-green-500',
+    icon: '👥'
+  },
+  computer: { 
+    label: 'Computer Station', 
+    color: 'bg-orange-500',
+    icon: '💻'
+  }
+} as const;
+
+// UPDATED: Simplified booking status without WiFi functionality
+export const BOOKING_STATUS = {
+  active: { 
+    label: 'Active', 
+    color: 'bg-green-500',
+    description: 'Currently in use'
+  },
+  completed: { 
+    label: 'Completed', 
+    color: 'bg-gray-500',
+    description: 'Booking completed'
+  },
+  cancelled: { 
+    label: 'Cancelled', 
+    color: 'bg-red-500',
+    description: 'Manually cancelled'
+  }
+} as const;

@@ -62,10 +62,6 @@ export default function CreateBreakModal({
         throw new Error('Break duration must be at least 30 minutes');
       }
 
-      if (duration > 300) {
-        throw new Error('Break duration cannot exceed 5 hours');
-      }
-
       await onCreateBreak({
         booking_id: booking.id,
         break_start_time: formData.break_start_time,
@@ -73,9 +69,8 @@ export default function CreateBreakModal({
         notes: formData.notes
       });
 
-      // Reset form and close
-      setFormData({ break_start_time: '', break_end_time: '', notes: '' });
       onClose();
+      setFormData({ break_start_time: '', break_end_time: '', notes: '' });
     } catch (err: any) {
       setError(err.message || 'Failed to create break');
     } finally {
@@ -90,130 +85,114 @@ export default function CreateBreakModal({
     }));
   };
 
-  // Get min/max datetime values for inputs
-  const now = new Date();
-  const bookingStart = new Date(booking.start_time);
-  const bookingEnd = new Date(booking.end_time);
-  
-  const minStartTime = new Date(Math.max(now.getTime(), bookingStart.getTime()));
-  const maxEndTime = bookingEnd;
-
-  const formatDateTimeLocal = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  const formatDateTimeLocal = (date: Date): string => {
+    return date.toISOString().slice(0, 16);
   };
+
+  const minStartTime = new Date();
+  const maxEndTime = new Date(booking.end_time);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <Card className="bg-gray-800 border-gray-700 w-full max-w-md">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-white">Create Break</h2>
-          <button
-            onClick={onClose}
+      <Card className="w-full max-w-md bg-gray-800 border-gray-700">
+        <div className="flex justify-between items-center p-6 border-b border-gray-700">
+          <h2 className="text-xl font-semibold text-white">Create Break</h2>
+          <button 
+            onClick={onClose} 
             className="text-gray-400 hover:text-white"
           >
             ✕
           </button>
         </div>
 
-        <div className="mb-4 p-3 bg-gray-700 rounded-lg">
-          <p className="text-white font-medium">
-            {getSeatDisplayName(booking)}
-          </p>
-          <p className="text-gray-300 text-sm">
-            Booking: {new Date(booking.start_time).toLocaleString()} - {new Date(booking.end_time).toLocaleString()}
-          </p>
-        </div>
-
-        {error && (
-          <div className="mb-4 p-3 bg-red-900 border border-red-700 rounded-lg">
-            <p className="text-red-300 text-sm">{error}</p>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-gray-300 text-sm font-medium mb-2">
-              Break Start Time
-            </label>
-            <input
-              type="datetime-local"
-              name="break_start_time"
-              value={formData.break_start_time}
-              onChange={handleChange}
-              min={formatDateTimeLocal(minStartTime)}
-              max={formatDateTimeLocal(maxEndTime)}
-              required
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-gray-300 text-sm font-medium mb-2">
-              Break End Time
-            </label>
-            <input
-              type="datetime-local"
-              name="break_end_time"
-              value={formData.break_end_time}
-              onChange={handleChange}
-              min={formData.break_start_time || formatDateTimeLocal(minStartTime)}
-              max={formatDateTimeLocal(maxEndTime)}
-              required
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-gray-300 text-sm font-medium mb-2">
-              Notes (Optional)
-            </label>
-            <textarea
-              name="notes"
-              value={formData.notes}
-              onChange={handleChange}
-              maxLength={200}
-              rows={3}
-              placeholder="Add any notes for people taking your break..."
-              className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <p className="text-gray-400 text-xs mt-1">
-              {formData.notes.length}/200 characters
+        <div className="p-6">
+          <div className="mb-4 p-3 bg-gray-700 rounded-lg">
+            <p className="text-white font-medium">
+              {/* FIXED: Pass the correct object structure */}
+              {getSeatDisplayName({
+                building: booking.building,
+                floor_hall: booking.floor_hall,
+                section: booking.section,
+                seat_number: booking.seat_number
+              })}
+            </p>
+            <p className="text-gray-300 text-sm">
+              Booking: {new Date(booking.start_time).toLocaleString()} - {new Date(booking.end_time).toLocaleString()}
             </p>
           </div>
 
-          <div className="text-sm text-gray-300 bg-gray-700 p-3 rounded-lg">
-            <p className="font-medium mb-1">Break Rules:</p>
-            <ul className="text-xs space-y-1">
-              <li>• Minimum duration: 30 minutes</li>
-              <li>• Maximum duration: 5 hours</li>
-              <li>• Must be within your booking period</li>
-              <li>• Cannot start in the past</li>
-            </ul>
-          </div>
+          {error && (
+            <div className="mb-4 p-3 bg-red-900 border border-red-700 rounded-lg">
+              <p className="text-red-300 text-sm">{error}</p>
+            </div>
+          )}
 
-          <div className="flex gap-3">
-            <Button
-              type="button"
-              onClick={onClose}
-              variant="outline"
-              className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-700"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              disabled={isLoading}
-              className="flex-1 bg-green-600 hover:bg-green-700"
-            >
-              {isLoading ? 'Creating...' : 'Create Break'}
-            </Button>
-          </div>
-        </form>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-gray-300 text-sm font-medium mb-2">
+                Break Start Time
+              </label>
+              <input
+                type="datetime-local"
+                name="break_start_time"
+                value={formData.break_start_time}
+                onChange={handleChange}
+                min={formatDateTimeLocal(minStartTime)}
+                max={formatDateTimeLocal(maxEndTime)}
+                required
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-gray-300 text-sm font-medium mb-2">
+                Break End Time
+              </label>
+              <input
+                type="datetime-local"
+                name="break_end_time"
+                value={formData.break_end_time}
+                onChange={handleChange}
+                min={formData.break_start_time || formatDateTimeLocal(minStartTime)}
+                max={formatDateTimeLocal(maxEndTime)}
+                required
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-gray-300 text-sm font-medium mb-2">
+                Notes (Optional)
+              </label>
+              <textarea
+                name="notes"
+                value={formData.notes}
+                onChange={handleChange}
+                placeholder="Add any notes about your break..."
+                rows={3}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="flex space-x-3">
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
+              >
+                {isLoading ? 'Creating...' : 'Create Break'}
+              </Button>
+              <Button
+                type="button"
+                onClick={onClose}
+                variant="outline"
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </div>
       </Card>
     </div>
   );

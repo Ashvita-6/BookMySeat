@@ -68,13 +68,6 @@ const createBooking = async (req, res) => {
 
     const savedBooking = await booking.save();
 
-    // Update seat status
-    await Seat.findByIdAndUpdate(seat_id, {
-      status: 'occupied',
-      occupied_by: user_id,
-      occupied_until: endTime
-    });
-
     // Populate the booking for response
     const completeBooking = await Booking.findById(savedBooking._id)
       .populate('user_id', 'name student_id email')
@@ -173,30 +166,26 @@ const cancelBooking = async (req, res) => {
     const { id } = req.params;
     const user_id = req.user.id;
 
-    // Check if booking exists and belongs to user
     const booking = await Booking.findOne({
       _id: id,
-      user_id
+      user_id: user_id
     });
 
     if (!booking) {
-      return res.status(404).json({ error: 'Booking not found' });
+      return res.status(404).json({ error: 'Booking not found or not authorized' });
     }
 
-    if (booking.status !== 'active') {
-      return res.status(400).json({ error: 'Only active bookings can be cancelled' });
+    if (booking.status === 'cancelled') {
+      return res.status(400).json({ error: 'Booking is already cancelled' });
+    }
+
+    if (booking.status === 'completed') {
+      return res.status(400).json({ error: 'Cannot cancel completed booking' });
     }
 
     // Update booking status
     booking.status = 'cancelled';
     await booking.save();
-
-    // Update seat status
-    await Seat.findByIdAndUpdate(booking.seat_id, {
-      status: 'available',
-      occupied_by: null,
-      occupied_until: null
-    });
 
     // Get populated booking for response
     const populatedBooking = await Booking.findById(booking._id)

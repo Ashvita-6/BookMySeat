@@ -1,3 +1,4 @@
+// library-seat-backend/scripts/fixCompleteSeats.js
 const mongoose = require('mongoose');
 require('dotenv').config();
 
@@ -35,62 +36,17 @@ const fixCompleteSeats = async () => {
   const deleteResult = await Seat.deleteMany({});
   console.log(`🗑️  Deleted ${deleteResult.deletedCount} existing seats`);
   
-  // Step 2: Create ALL seats from scratch
+  // Step 2: Create ALL seats from scratch with corrected seat counts
   const allSeats = [];
   
-  // MAIN LIBRARY - Ground Floor (50 seats)
+  // MAIN LIBRARY - Ground Floor (30 seats total)
   console.log('📝 Creating Main Library Ground Floor seats...');
-  
-  // Section A - Individual seats (18)
-  for (let i = 1; i <= 18; i++) {
-    allSeats.push({
-      building: 'main',
-      floor_hall: 'ground_floor',
-      section: 'A',
-      seat_number: i.toString().padStart(2, '0'),
-      seat_type: 'individual',
-      has_power: true,
-      has_monitor: false,
-      is_active: true
-    });
-  }
-  
-  // Section B - Individual seats (17)
-  for (let i = 1; i <= 17; i++) {
-    allSeats.push({
-      building: 'main',
-      floor_hall: 'ground_floor',
-      section: 'B',
-      seat_number: i.toString().padStart(2, '0'),
-      seat_type: 'individual',
-      has_power: true,
-      has_monitor: false,
-      is_active: true
-    });
-  }
-  
-  // Section C - Group seats (15)
-  for (let i = 1; i <= 15; i++) {
-    allSeats.push({
-      building: 'main',
-      floor_hall: 'ground_floor',
-      section: 'C',
-      seat_number: i.toString().padStart(2, '0'),
-      seat_type: 'group',
-      has_power: true,
-      has_monitor: false,
-      is_active: true
-    });
-  }
-  
-  // MAIN LIBRARY - First Floor (50 seats)
-  console.log('📝 Creating Main Library First Floor seats...');
   
   // Section A - Individual seats (15)
   for (let i = 1; i <= 15; i++) {
     allSeats.push({
       building: 'main',
-      floor_hall: 'first_floor',
+      floor_hall: 'ground_floor',
       section: 'A',
       seat_number: i.toString().padStart(2, '0'),
       seat_type: 'individual',
@@ -104,7 +60,7 @@ const fixCompleteSeats = async () => {
   for (let i = 1; i <= 15; i++) {
     allSeats.push({
       building: 'main',
-      floor_hall: 'first_floor',
+      floor_hall: 'ground_floor',
       section: 'B',
       seat_number: i.toString().padStart(2, '0'),
       seat_type: 'individual',
@@ -114,12 +70,29 @@ const fixCompleteSeats = async () => {
     });
   }
   
-  // Section C - Computer stations (20)
-  for (let i = 1; i <= 20; i++) {
+  // MAIN LIBRARY - First Floor (60 seats total)
+  console.log('📝 Creating Main Library First Floor seats...');
+  
+  // Section A - Individual seats (30)
+  for (let i = 1; i <= 30; i++) {
     allSeats.push({
       building: 'main',
       floor_hall: 'first_floor',
-      section: 'C',
+      section: 'A',
+      seat_number: i.toString().padStart(2, '0'),
+      seat_type: 'individual',
+      has_power: true,
+      has_monitor: false,
+      is_active: true
+    });
+  }
+  
+  // Section B - Computer stations (30)
+  for (let i = 1; i <= 30; i++) {
+    allSeats.push({
+      building: 'main',
+      floor_hall: 'first_floor',
+      section: 'B',
       seat_number: i.toString().padStart(2, '0'),
       seat_type: 'computer',
       has_power: true,
@@ -128,9 +101,9 @@ const fixCompleteSeats = async () => {
     });
   }
   
-  // READING ROOM - Hall 1 (70 seats: 35+35)
+  // READING ROOM - Hall 1 (50 seats)
   console.log('📝 Creating Reading Room Hall 1 seats...');
-  for (let i = 1; i <= 35; i++) {
+  for (let i = 1; i <= 50; i++) {
     allSeats.push({
       building: 'reading',
       floor_hall: 'hall_1',
@@ -142,22 +115,10 @@ const fixCompleteSeats = async () => {
       is_active: true
     });
   }
-  for (let i = 1; i <= 35; i++) {
-    allSeats.push({
-      building: 'reading',
-      floor_hall: 'hall_1',
-      section: 'B',
-      seat_number: i.toString().padStart(2, '0'),
-      seat_type: 'individual',
-      has_power: true,
-      has_monitor: false,
-      is_active: true
-    });
-  }
   
-  // READING ROOM - Hall 2 (50 seats: 25+25)
+  // READING ROOM - Hall 2 (50 seats)
   console.log('📝 Creating Reading Room Hall 2 seats...');
-  for (let i = 1; i <= 25; i++) {
+  for (let i = 1; i <= 50; i++) {
     allSeats.push({
       building: 'reading',
       floor_hall: 'hall_2',
@@ -169,22 +130,10 @@ const fixCompleteSeats = async () => {
       is_active: true
     });
   }
-  for (let i = 1; i <= 25; i++) {
-    allSeats.push({
-      building: 'reading',
-      floor_hall: 'hall_2',
-      section: 'B',
-      seat_number: i.toString().padStart(2, '0'),
-      seat_type: 'individual',
-      has_power: true,
-      has_monitor: false,
-      is_active: true
-    });
-  }
   
-  // READING ROOM - Hall 3 (50 seats: 25+25)
+  // READING ROOM - Hall 3 (50 seats)
   console.log('📝 Creating Reading Room Hall 3 seats...');
-  for (let i = 1; i <= 25; i++) {
+  for (let i = 1; i <= 50; i++) {
     allSeats.push({
       building: 'reading',
       floor_hall: 'hall_3',
@@ -196,81 +145,62 @@ const fixCompleteSeats = async () => {
       is_active: true
     });
   }
-  for (let i = 1; i <= 25; i++) {
-    allSeats.push({
-      building: 'reading',
-      floor_hall: 'hall_3',
-      section: 'B',
-      seat_number: i.toString().padStart(2, '0'),
-      seat_type: 'individual',
-      has_power: true,
-      has_monitor: false,
-      is_active: true
-    });
+  
+  // Insert all seats
+  console.log(`📝 Inserting ${allSeats.length} seats...`);
+  
+  try {
+    await Seat.insertMany(allSeats);
+    console.log('✅ All seats inserted successfully!');
+  } catch (error) {
+    console.error('❌ Error inserting seats:', error);
+    
+    // Try inserting one by one if bulk insert fails
+    console.log('🔄 Trying individual inserts...');
+    let successCount = 0;
+    for (const seatData of allSeats) {
+      try {
+        await Seat.create(seatData);
+        successCount++;
+      } catch (err) {
+        console.error(`Failed to create seat: ${seatData.building}-${seatData.floor_hall}-${seatData.section}-${seatData.seat_number}`, err.message);
+      }
+    }
+    console.log(`✅ ${successCount} seats inserted successfully`);
   }
   
-  // Step 3: Insert all seats
-  console.log(`💾 Inserting ${allSeats.length} seats...`);
-  await Seat.insertMany(allSeats);
-  
-  // Step 4: Verify results
-  const mainGround = await Seat.countDocuments({ building: 'main', floor_hall: 'ground_floor' });
-  const mainFirst = await Seat.countDocuments({ building: 'main', floor_hall: 'first_floor' });
-  const hall1 = await Seat.countDocuments({ building: 'reading', floor_hall: 'hall_1' });
-  const hall2 = await Seat.countDocuments({ building: 'reading', floor_hall: 'hall_2' });
-  const hall3 = await Seat.countDocuments({ building: 'reading', floor_hall: 'hall_3' });
-  const totalMain = await Seat.countDocuments({ building: 'main' });
-  const totalReading = await Seat.countDocuments({ building: 'reading' });
-  const totalAll = await Seat.countDocuments();
-  
-  console.log('✅ Complete Seat Fix Results:');
-  console.log('📊 Main Library:');
-  console.log(`   - Ground Floor: ${mainGround} seats (should be 50)`);
-  console.log(`   - First Floor: ${mainFirst} seats (should be 50)`);
-  console.log(`   - Total Main: ${totalMain} seats (should be 100)`);
-  console.log('📖 Reading Room:');
-  console.log(`   - Hall 1: ${hall1} seats (should be 70)`);
-  console.log(`   - Hall 2: ${hall2} seats (should be 50)`);
-  console.log(`   - Hall 3: ${hall3} seats (should be 50)`);
-  console.log(`   - Total Reading: ${totalReading} seats (should be 170)`);
-  console.log(`🎯 Grand Total: ${totalAll} seats (should be 270)`);
-  
-  if (mainGround === 50 && mainFirst === 50 && hall1 === 70 && hall2 === 50 && hall3 === 50) {
-    console.log('🎉 All seat counts are correct!');
-  } else {
-    console.log('⚠️  Some seat counts are incorrect!');
-  }
-  
-  // Step 5: Test a specific query that frontend would make
-  console.log('\n🧪 Testing Frontend Queries:');
-  const hall2Seats = await Seat.find({ 
-    building: 'reading', 
-    floor_hall: 'hall_2',
-    is_active: true 
-  }).limit(5);
-  
-  const hall3Seats = await Seat.find({ 
-    building: 'reading', 
-    floor_hall: 'hall_3',
-    is_active: true 
-  }).limit(5);
-  
-  console.log('Hall 2 Sample Seats:');
-  hall2Seats.forEach(seat => {
-    console.log(`  ${seat.building}-${seat.floor_hall}-${seat.section}${seat.seat_number}`);
+  // Show summary
+  const summary = await Seat.aggregate([
+    {
+      $group: {
+        _id: { building: '$building', floor_hall: '$floor_hall' },
+        count: { $sum: 1 }
+      }
+    },
+    { $sort: { '_id.building': 1, '_id.floor_hall': 1 } }
+  ]);
+
+  console.log('\n=== Final Seat Summary ===');
+  summary.forEach(item => {
+    console.log(`${item._id.building} - ${item._id.floor_hall}: ${item.count} seats`);
   });
-  
-  console.log('Hall 3 Sample Seats:');
-  hall3Seats.forEach(seat => {
-    console.log(`  ${seat.building}-${seat.floor_hall}-${seat.section}${seat.seat_number}`);
-  });
-  
+
+  const total = await Seat.countDocuments();
+  console.log(`\n✅ Total seats in database: ${total}`);
+  console.log('\n🎯 Expected seat distribution:');
+  console.log('   📚 Main Library Ground Floor: 30 seats');
+  console.log('   📚 Main Library First Floor: 60 seats (30 individual + 30 computer)');
+  console.log('   📖 Reading Hall 1: 50 seats');
+  console.log('   📖 Reading Hall 2: 50 seats');
+  console.log('   📖 Reading Hall 3: 50 seats');
+  console.log('   📊 Total Expected: 240 seats');
+
+  await mongoose.connection.close();
+  console.log('\n🔌 Database connection closed');
   process.exit(0);
 };
 
-// Run the complete fix
-if (require.main === module) {
-  fixCompleteSeats().catch(console.error);
-}
-
-module.exports = { fixCompleteSeats };
+fixCompleteSeats().catch(error => {
+  console.error('💥 Script failed:', error);
+  process.exit(1);
+});
