@@ -3,18 +3,27 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
-// MongoDB connection
+// MongoDB connection with better error handling
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/library-seat-booking');
-    console.log('✅ Connected to MongoDB');
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/library-seat-booking';
+    console.log('🔌 Connecting to MongoDB at:', mongoUri);
+    
+    await mongoose.connect(mongoUri, {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
+    
+    console.log('✅ Connected to MongoDB successfully');
+    return true;
   } catch (error) {
-    console.error('❌ MongoDB connection error:', error);
-    process.exit(1);
+    console.error('❌ MongoDB connection error:', error.message);
+    console.error('Make sure MongoDB is running on your system!');
+    return false;
   }
 };
 
-// Define schemas directly in the script to avoid import issues
+// Define schemas inline to avoid model conflicts
 const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   password: { type: String, required: true },
@@ -34,22 +43,26 @@ const seatSchema = new mongoose.Schema({
   is_active: { type: Boolean, default: true }
 }, { timestamps: true });
 
-// Create indexes
+// Add indexes
 seatSchema.index({ building: 1, floor_hall: 1, section: 1, seat_number: 1 }, { unique: true });
 seatSchema.index({ building: 1, floor_hall: 1 });
-seatSchema.index({ seat_type: 1 });
 seatSchema.index({ is_active: 1 });
 
-// Create models
+// Get or create models
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Seat = mongoose.models.Seat || mongoose.model('Seat', seatSchema);
 
+const clearDatabase = async () => {
+  console.log('\n🗑️  Clearing existing data...');
+  await User.deleteMany({});
+  await Seat.deleteMany({});
+  console.log('✅ Database cleared');
+};
+
 const seedUsers = async () => {
   try {
-    // Clear existing users
-    await User.deleteMany({});
-    console.log('🗑️  Cleared existing users');
-
+    console.log('\n👥 Creating users...');
+    
     const users = [
       {
         email: 'admin@library.edu',
@@ -71,44 +84,31 @@ const seedUsers = async () => {
         name: 'Jane Smith',
         student_id: 'STU002',
         role: 'student'
-      },
-      {
-        email: 'alice.johnson@student.edu',
-        password: await bcrypt.hash('student123', 10),
-        name: 'Alice Johnson',
-        student_id: 'STU003',
-        role: 'student'
-      },
-      {
-        email: 'bob.wilson@student.edu',
-        password: await bcrypt.hash('student123', 10),
-        name: 'Bob Wilson',
-        student_id: 'STU004',
-        role: 'student'
       }
     ];
 
-    await User.insertMany(users);
-    console.log(`✅ Created ${users.length} users successfully`);
+    await User.insertMany(users, { ordered: false }).catch(err => {
+      // Ignore duplicate key errors
+      if (err.code !== 11000) throw err;
+    });
     
+    console.log(`✅ Created ${users.length} users`);
+    return true;
   } catch (error) {
     console.error('❌ Error seeding users:', error.message);
-    throw error;
+    return false;
   }
 };
 
 const seedSeats = async () => {
   try {
-    // Clear ALL existing seats
-    await Seat.deleteMany({});
-    console.log('🗑️  Cleared all existing seats');
-
-    const seats = [];
-
-    // MAIN LIBRARY - Ground Floor (50 seats total)
-    console.log('📝 Creating Main Library Ground Floor seats...');
+    console.log('\n💺 Creating seats...');
     
-    // Section A - Individual seats (18 seats)
+    const seats = [];
+    
+    // MAIN LIBRARY - Ground Floor (50 seats)
+    console.log('  📍 Main Library - Ground Floor');
+    // Section A - Individual seats (18)
     for (let i = 1; i <= 18; i++) {
       seats.push({
         building: 'main',
@@ -122,7 +122,7 @@ const seedSeats = async () => {
       });
     }
     
-    // Section B - Individual seats (17 seats)
+    // Section B - Individual seats (17)
     for (let i = 1; i <= 17; i++) {
       seats.push({
         building: 'main',
@@ -136,7 +136,7 @@ const seedSeats = async () => {
       });
     }
     
-    // Section C - Group study seats (15 seats)
+    // Section C - Group study seats (15)
     for (let i = 1; i <= 15; i++) {
       seats.push({
         building: 'main',
@@ -150,10 +150,9 @@ const seedSeats = async () => {
       });
     }
 
-    // MAIN LIBRARY - First Floor (50 seats total)
-    console.log('📝 Creating Main Library First Floor seats...');
-    
-    // Section A - Individual seats (15 seats)
+    // MAIN LIBRARY - First Floor (50 seats)
+    console.log('  📍 Main Library - First Floor');
+    // Section A - Individual seats (15)
     for (let i = 1; i <= 15; i++) {
       seats.push({
         building: 'main',
@@ -167,7 +166,7 @@ const seedSeats = async () => {
       });
     }
     
-    // Section B - Individual seats (15 seats)
+    // Section B - Individual seats (15)
     for (let i = 1; i <= 15; i++) {
       seats.push({
         building: 'main',
@@ -181,7 +180,7 @@ const seedSeats = async () => {
       });
     }
     
-    // Section C - Computer stations (20 seats)
+    // Section C - Computer stations (20)
     for (let i = 1; i <= 20; i++) {
       seats.push({
         building: 'main',
@@ -196,9 +195,7 @@ const seedSeats = async () => {
     }
 
     // READING ROOM - Hall 1 (70 seats)
-    console.log('📝 Creating Reading Room Hall 1 seats...');
-    
-    // Section A (35 seats)
+    console.log('  📍 Reading Room - Hall 1');
     for (let i = 1; i <= 35; i++) {
       seats.push({
         building: 'reading',
@@ -211,8 +208,6 @@ const seedSeats = async () => {
         is_active: true
       });
     }
-    
-    // Section B (35 seats)
     for (let i = 1; i <= 35; i++) {
       seats.push({
         building: 'reading',
@@ -227,9 +222,7 @@ const seedSeats = async () => {
     }
 
     // READING ROOM - Hall 2 (50 seats)
-    console.log('📝 Creating Reading Room Hall 2 seats...');
-    
-    // Section A (25 seats)
+    console.log('  📍 Reading Room - Hall 2');
     for (let i = 1; i <= 25; i++) {
       seats.push({
         building: 'reading',
@@ -242,8 +235,6 @@ const seedSeats = async () => {
         is_active: true
       });
     }
-    
-    // Section B (25 seats)
     for (let i = 1; i <= 25; i++) {
       seats.push({
         building: 'reading',
@@ -258,9 +249,7 @@ const seedSeats = async () => {
     }
 
     // READING ROOM - Hall 3 (70 seats)
-    console.log('📝 Creating Reading Room Hall 3 seats...');
-    
-    // Section A (35 seats)
+    console.log('  📍 Reading Room - Hall 3');
     for (let i = 1; i <= 35; i++) {
       seats.push({
         building: 'reading',
@@ -273,8 +262,6 @@ const seedSeats = async () => {
         is_active: true
       });
     }
-    
-    // Section B (35 seats)
     for (let i = 1; i <= 35; i++) {
       seats.push({
         building: 'reading',
@@ -288,60 +275,33 @@ const seedSeats = async () => {
       });
     }
 
-    // Insert all seats in bulk
-    console.log(`💾 Inserting ${seats.length} seats into database...`);
-    await Seat.insertMany(seats);
+    // Bulk insert with error handling
+    console.log(`\n💾 Inserting ${seats.length} seats...`);
     
-    console.log('✅ All seats created successfully!');
+    try {
+      await Seat.insertMany(seats, { ordered: false });
+    } catch (err) {
+      // Continue even if some seats already exist
+      if (err.code === 11000) {
+        console.log('⚠️  Some seats already existed, continuing...');
+      } else {
+        throw err;
+      }
+    }
     
-    // Verify and show summary
-    const summary = await Seat.aggregate([
-      {
-        $group: {
-          _id: { 
-            building: '$building', 
-            floor_hall: '$floor_hall',
-            is_active: '$is_active'
-          },
-          count: { $sum: 1 }
-        }
-      },
-      { $sort: { '_id.building': 1, '_id.floor_hall': 1 } }
-    ]);
-
-    console.log('\n📊 === SEAT SUMMARY ===');
-    summary.forEach(item => {
-      const status = item._id.is_active ? 'Active' : 'Inactive';
-      console.log(`   ${item._id.building} - ${item._id.floor_hall}: ${item.count} seats (${status})`);
-    });
-
-    const totalActive = await Seat.countDocuments({ is_active: true });
-    const totalInactive = await Seat.countDocuments({ is_active: false });
-    const total = await Seat.countDocuments();
-    
-    console.log('\n📈 === TOTALS ===');
-    console.log(`   Active seats: ${totalActive}`);
-    console.log(`   Inactive seats: ${totalInactive}`);
-    console.log(`   Total seats in database: ${total}`);
-    
-    // Breakdown by building
-    const mainSeats = await Seat.countDocuments({ building: 'main', is_active: true });
-    const readingSeats = await Seat.countDocuments({ building: 'reading', is_active: true });
-    
-    console.log('\n🏢 === BY BUILDING ===');
-    console.log(`   Main Library: ${mainSeats} active seats`);
-    console.log(`   Reading Room: ${readingSeats} active seats`);
+    console.log('✅ Seats created successfully!');
+    return true;
     
   } catch (error) {
     console.error('❌ Error seeding seats:', error.message);
-    throw error;
+    return false;
   }
 };
 
-const verifyDatabase = async () => {
-  console.log('\n🔍 === VERIFICATION ===');
+const verifySeats = async () => {
+  console.log('\n🔍 Verifying seats...');
   
-  // Test queries that match your application's filters
+  // Test the exact queries your app uses
   const testQueries = [
     { is_active: true, building: 'main', floor_hall: 'ground_floor' },
     { is_active: true, building: 'main', floor_hall: 'first_floor' },
@@ -350,34 +310,61 @@ const verifyDatabase = async () => {
     { is_active: true, building: 'reading', floor_hall: 'hall_3' }
   ];
   
+  console.log('\n📊 Seat counts by location:');
   for (const query of testQueries) {
     const count = await Seat.countDocuments(query);
-    console.log(`   Query ${JSON.stringify(query)}: ${count} seats found`);
+    console.log(`  ${query.building} - ${query.floor_hall}: ${count} active seats`);
   }
+  
+  const totalActive = await Seat.countDocuments({ is_active: true });
+  const totalSeats = await Seat.countDocuments();
+  
+  console.log('\n📈 Total Summary:');
+  console.log(`  Active seats: ${totalActive}`);
+  console.log(`  Total seats: ${totalSeats}`);
+  
+  return totalActive > 0;
 };
 
-const seedDatabase = async () => {
+const main = async () => {
+  console.log('🚀 Starting Database Setup...\n');
+  console.log('================================');
+  
+  // Connect to database
+  const connected = await connectDB();
+  if (!connected) {
+    console.error('\n❌ Failed to connect to database. Exiting...');
+    process.exit(1);
+  }
+  
   try {
-    console.log('🚀 Starting Complete Database Seeding...\n');
+    // Clear and seed database
+    await clearDatabase();
     
-    await connectDB();
+    const usersCreated = await seedUsers();
+    const seatsCreated = await seedSeats();
     
-    await seedUsers();
-    console.log('');
+    if (!usersCreated || !seatsCreated) {
+      throw new Error('Failed to seed database');
+    }
     
-    await seedSeats();
-    console.log('');
+    // Verify the data
+    const verified = await verifySeats();
     
-    await verifyDatabase();
-    
-    console.log('\n✅ === DATABASE SEEDING COMPLETED SUCCESSFULLY ===');
-    console.log('\n📋 Login Credentials:');
-    console.log('   Admin: admin@library.edu / admin123');
-    console.log('   Students: *.student.edu / student123');
-    console.log('\n🎉 Your application should now show all seats!');
+    if (verified) {
+      console.log('\n================================');
+      console.log('✅ DATABASE SETUP SUCCESSFUL!');
+      console.log('================================\n');
+      console.log('📋 Login Credentials:');
+      console.log('  Admin: admin@library.edu / admin123');
+      console.log('  Student: john.doe@student.edu / student123');
+      console.log('\n🎉 Your application should now show all seats!');
+    } else {
+      throw new Error('Verification failed - no active seats found');
+    }
     
   } catch (error) {
-    console.error('\n❌ Database seeding failed:', error);
+    console.error('\n❌ Setup failed:', error.message);
     process.exit(1);
   } finally {
     await mongoose.connection.close();
@@ -386,9 +373,9 @@ const seedDatabase = async () => {
   }
 };
 
-// Run the seeder
+// Run if executed directly
 if (require.main === module) {
-  seedDatabase();
+  main();
 }
 
-module.exports = { seedDatabase };
+module.exports = { connectDB, seedUsers, seedSeats };

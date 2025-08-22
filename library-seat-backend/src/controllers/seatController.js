@@ -13,10 +13,10 @@ const getAllSeats = async (req, res) => {
       has_monitor,
       status,
       page = 1,
-      limit = 100
+      limit = 1000  // Increased default limit
     } = req.query;
 
-    // Build filter object
+    // Build filter object - ensure we're looking for active seats
     const filter = { is_active: true };
     
     if (building) filter.building = building;
@@ -26,15 +26,31 @@ const getAllSeats = async (req, res) => {
     if (has_power !== undefined) filter.has_power = has_power === 'true';
     if (has_monitor !== undefined) filter.has_monitor = has_monitor === 'true';
 
-    console.log('Seat filter:', filter);
+    console.log('🔍 Seat query filter:', JSON.stringify(filter));
+
+    // Count total matching seats first
+    const totalCount = await Seat.countDocuments(filter);
+    console.log(`📊 Total matching seats in DB: ${totalCount}`);
 
     // Get seats with pagination
     const seats = await Seat.find(filter)
       .sort({ building: 1, floor_hall: 1, section: 1, seat_number: 1 })
       .limit(parseInt(limit))
-      .skip((parseInt(page) - 1) * parseInt(limit));
+      .skip((parseInt(page) - 1) * parseInt(limit))
+      .lean(); // Use lean() for better performance
 
-    console.log(`Found ${seats.length} seats`);
+    console.log(`✅ Retrieved ${seats.length} seats from database`);
+
+    // If no seats found, return early with helpful message
+    if (seats.length === 0) {
+      return res.json({ 
+        seats: [],
+        total: 0,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        message: 'No seats found. Database may need seeding.'
+      });
+    }
 
     // Get current time for status checking
     const now = new Date();
@@ -46,7 +62,7 @@ const getAllSeats = async (req, res) => {
       status: 'active',
       start_time: { $lte: now },
       end_time: { $gt: now }
-    }).populate('user_id', 'name');
+    }).populate('user_id', 'name').lean();
 
     // Create a map of seat_id to booking info
     const bookingMap = {};
@@ -83,10 +99,12 @@ const getAllSeats = async (req, res) => {
       };
     });
 
-    // Apply status filter if requested
+    // Apply status filter if requested (available/occupied)
     const filteredSeats = status 
       ? formattedSeats.filter(seat => seat.status === status)
       : formattedSeats;
+
+    console.log(`📤 Returning ${filteredSeats.length} seats to client`);
 
     res.json({ 
       seats: filteredSeats,
@@ -96,8 +114,13 @@ const getAllSeats = async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get seats error:', error);
-    res.status(500).json({ error: 'Failed to get seats' });
+    console.error('❌ Get seats error:', error);
+    res.status(500).json({ 
+      error: 'Failed to get seats',
+      message: error.message,
+      seats: [],
+      total: 0
+    });
   }
 };
 
@@ -141,7 +164,7 @@ const getSeatById = async (req, res) => {
     res.json({ seat: formattedSeat });
 
   } catch (error) {
-    console.error('Get seat error:', error);
+    console.error('Get seat by ID error:', error);
     res.status(500).json({ error: 'Failed to get seat' });
   }
 };
@@ -293,15 +316,15 @@ const deleteSeat = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Check if seat has any active bookings
+    // Check if seat has active bookings
     const now = new Date();
-    const activeBookings = await Booking.find({
+    const activeBooking = await Booking.findOne({
       seat_id: id,
       status: 'active',
       end_time: { $gt: now }
     });
 
-    if (activeBookings.length > 0) {
+    if (activeBooking) {
       return res.status(400).json({ 
         error: 'Cannot delete seat with active bookings' 
       });
@@ -313,7 +336,16 @@ const deleteSeat = async (req, res) => {
       return res.status(404).json({ error: 'Seat not found' });
     }
 
-    res.json({ message: 'Seat deleted successfully' });
+    res.json({ 
+      message: 'Seat deleted successfully',
+      deletedSeat: {
+        id: seat._id,
+        building: seat.building,
+        floor_hall: seat.floor_hall,
+        section: seat.section,
+        seat_number: seat.seat_number
+      }
+    });
 
   } catch (error) {
     console.error('Delete seat error:', error);
