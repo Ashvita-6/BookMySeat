@@ -1,11 +1,11 @@
 // library-seat-frontend/src/types/seat.ts
 export interface Seat {
   id: number;
-  building: 'main' | 'reading';
-  floor_hall: string; // 'ground_floor', 'first_floor', 'hall_1', 'hall_2', 'hall_3'
+  building: 'reading'; // REMOVED 'main'
+  floor_hall: string; // Only 'hall_1', 'hall_2', 'hall_3'
   section: string;
   seat_number: string;
-  seat_type: 'individual' | 'group' | 'computer';
+  seat_type: 'individual'; // Only individual seats
   has_power: boolean;
   has_monitor: boolean;
   is_active: boolean;
@@ -18,7 +18,7 @@ export interface Seat {
 }
 
 export interface SeatFilter {
-  building?: 'main' | 'reading';
+  building?: 'reading'; // REMOVED 'main'
   floor_hall?: string;
   section?: string;
   seat_type?: string;
@@ -27,26 +27,8 @@ export interface SeatFilter {
   status?: string;
 }
 
-// UPDATED: Library Structure with correct seat counts
+// UPDATED: Reading Halls Only Structure
 export interface LibraryStructure {
-  main: {
-    ground_floor: {
-      label: 'Ground Floor';
-      capacity: 30;
-      sections: {
-        A: { type: 'individual'; count: 15 };
-        B: { type: 'individual'; count: 15 };
-      };
-    };
-    first_floor: {
-      label: 'First Floor';
-      capacity: 60;
-      sections: {
-        A: { type: 'individual'; count: 30 };
-        B: { type: 'computer'; count: 30 };
-      };
-    };
-  };
   reading: {
     hall_1: {
       label: 'Hall 1';
@@ -72,26 +54,8 @@ export interface LibraryStructure {
   };
 }
 
-// UPDATED: Export the constant with correct seat counts
+// UPDATED: Reading Halls Only Structure
 export const LIBRARY_STRUCTURE: LibraryStructure = {
-  main: {
-    ground_floor: {
-      label: 'Ground Floor',
-      capacity: 30,
-      sections: {
-        A: { type: 'individual', count: 15 },
-        B: { type: 'individual', count: 15 }
-      }
-    },
-    first_floor: {
-      label: 'First Floor',
-      capacity: 60,
-      sections: {
-        A: { type: 'individual', count: 30 },
-        B: { type: 'computer', count: 30 }
-      }
-    }
-  },
   reading: {
     hall_1: {
       label: 'Hall 1',

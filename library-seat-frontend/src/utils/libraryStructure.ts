@@ -1,26 +1,8 @@
 // library-seat-frontend/src/utils/libraryStructure.ts
 import { LibraryStructure } from '@/types/seat';
 
-// UPDATED: Library structure with correct seat counts as per requirements
+// UPDATED: Reading Halls Only Structure
 export const LIBRARY_STRUCTURE: LibraryStructure = {
-  main: {
-    ground_floor: {
-      label: 'Ground Floor',
-      capacity: 30,
-      sections: {
-        A: { type: 'individual', count: 15 },
-        B: { type: 'individual', count: 15 }
-      }
-    },
-    first_floor: {
-      label: 'First Floor',
-      capacity: 60,
-      sections: {
-        A: { type: 'individual', count: 30 },
-        B: { type: 'computer', count: 30 }
-      }
-    }
-  },
   reading: {
     hall_1: {
       label: 'Hall 1',
@@ -46,11 +28,11 @@ export const LIBRARY_STRUCTURE: LibraryStructure = {
   }
 };
 
-// UTILITY FUNCTIONS (the missing ones you were looking for)
+// UTILITY FUNCTIONS (Updated for Reading Halls Only)
 
 // For objects with all properties (Booking, Break, Seat with location info)
 export const getSeatDisplayName = (item: {
-  building?: 'main' | 'reading';
+  building?: 'reading';
   floor_hall?: string;
   section?: string;
   seat_number?: string;
@@ -60,22 +42,17 @@ export const getSeatDisplayName = (item: {
     return 'Unknown Location';
   }
 
-  const buildingName = item.building === 'main' ? 'Main Library' : 'Reading Room';
-  
-  let floorHallName = '';
-  if (item.building === 'main') {
-    floorHallName = item.floor_hall === 'ground_floor' ? 'Ground Floor' : 'First Floor';
-  } else {
-    const hallNum = item.floor_hall.replace('hall_', '');
-    floorHallName = `Hall ${hallNum}`;
-  }
+  // Only Reading Rooms now
+  const buildingName = 'Reading Room';
+  const hallNum = item.floor_hall.replace('hall_', '');
+  const floorHallName = `Hall ${hallNum}`;
   
   return `${buildingName} - ${floorHallName} - ${item.section}${item.seat_number}`;
 };
 
 // For individual parameters
 export const getSeatDisplayNameFromParams = (
-  building?: 'main' | 'reading', 
+  building?: 'reading', 
   floor_hall?: string, 
   section?: string, 
   seat_number?: string
@@ -86,20 +63,15 @@ export const getSeatDisplayNameFromParams = (
   return getSeatDisplayName({ building, floor_hall, section, seat_number });
 };
 
-export const getLocationDisplayName = (building?: 'main' | 'reading', floor_hall?: string): string => {
+export const getLocationDisplayName = (building?: 'reading', floor_hall?: string): string => {
   if (!building || !floor_hall) {
     return 'Unknown Location';
   }
   
-  const buildingName = building === 'main' ? 'Main Library' : 'Reading Room';
-  
-  let floorHallName = '';
-  if (building === 'main') {
-    floorHallName = floor_hall === 'ground_floor' ? 'Ground Floor' : 'First Floor';
-  } else {
-    const hallNum = floor_hall.replace('hall_', '');
-    floorHallName = `Hall ${hallNum}`;
-  }
+  // Only Reading Rooms now
+  const buildingName = 'Reading Room';
+  const hallNum = floor_hall.replace('hall_', '');
+  const floorHallName = `Hall ${hallNum}`;
   
   return `${buildingName} - ${floorHallName}`;
 };
@@ -131,26 +103,19 @@ export const formatTimeRemaining = (endTime: string): string => {
   return formatDuration(minutes);
 };
 
-// BUILDING AND SEAT TYPE OPTIONS
+// BUILDING AND SEAT TYPE OPTIONS (Reading Only)
 
 export const BUILDING_OPTIONS = [
-  { value: 'main', label: 'Main Library' },
-  { value: 'reading', label: 'Reading Room' }
+  { value: 'reading', label: 'Reading Room' } // REMOVED main library option
 ];
 
-export const getFloorHallOptions = (building: 'main' | 'reading') => {
-  if (building === 'main') {
-    return [
-      { value: 'ground_floor', label: 'Ground Floor' },
-      { value: 'first_floor', label: 'First Floor' }
-    ];
-  } else {
-    return [
-      { value: 'hall_1', label: 'Hall 1' },
-      { value: 'hall_2', label: 'Hall 2' },
-      { value: 'hall_3', label: 'Hall 3' }
-    ];
-  }
+export const getFloorHallOptions = (building: 'reading') => {
+  // Only reading halls now
+  return [
+    { value: 'hall_1', label: 'Hall 1' },
+    { value: 'hall_2', label: 'Hall 2' },
+    { value: 'hall_3', label: 'Hall 3' }
+  ];
 };
 
 export const SEAT_TYPES = {
@@ -158,17 +123,8 @@ export const SEAT_TYPES = {
     label: 'Individual Study', 
     color: 'bg-blue-500',
     icon: '👤'
-  },
-  group: { 
-    label: 'Group Study', 
-    color: 'bg-green-500',
-    icon: '👥'
-  },
-  computer: { 
-    label: 'Computer Station', 
-    color: 'bg-orange-500',
-    icon: '💻'
   }
+  // REMOVED group and computer seat types
 } as const;
 
 // UPDATED: Simplified booking status without WiFi functionality

@@ -1,4 +1,4 @@
-
+// library-seat-frontend/src/app/dashboard/page.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -27,11 +27,11 @@ export default function DashboardPage() {
   const [seats, setSeats] = useState<Seat[]>([]);
   const [myBookings, setMyBookings] = useState<Booking[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedBuilding, setSelectedBuilding] = useState<'main' | 'reading'>('main');
-  const [selectedFloorHall, setSelectedFloorHall] = useState<string>('ground_floor');
+  const [selectedBuilding, setSelectedBuilding] = useState<'reading'>('reading'); // FIXED: Only reading
+  const [selectedFloorHall, setSelectedFloorHall] = useState<string>('hall_1'); // FIXED: Default to hall_1
   const [selectedSeatType, setSelectedSeatType] = useState<string>('all');
   const [error, setError] = useState('');
-  const [mounted, setMounted] = useState(false); // Fix hydration error
+  const [mounted, setMounted] = useState(false);
 
   // Fix hydration error - only render after component mounts
   useEffect(() => {
@@ -44,85 +44,50 @@ export default function DashboardPage() {
       return;
     }
 
-    if (isAuthenticated && mounted) { // Only load data after mounting
+    if (isAuthenticated) {
       loadData();
     }
-  }, [authLoading, isAuthenticated, router, mounted]);
+  }, [authLoading, isAuthenticated, router]);
 
-  // Reset floor/hall when building changes
+  // Load data when filters change
   useEffect(() => {
-    if (mounted) { // Only run after mounting
-      const floorHallOptions = getFloorHallOptions(selectedBuilding);
-      if (floorHallOptions.length > 0) {
-        setSelectedFloorHall(floorHallOptions[0].value);
-      }
-    }
-  }, [selectedBuilding, mounted]);
-
-  // Reload seats when location changes
-  useEffect(() => {
-    if (isAuthenticated && mounted) {
+    if (isAuthenticated) {
       loadSeats();
     }
-  }, [selectedBuilding, selectedFloorHall, isAuthenticated, mounted]);
+  }, [selectedBuilding, selectedFloorHall, selectedSeatType, isAuthenticated]);
 
   const loadData = async () => {
+    await Promise.all([loadSeats(), loadMyBookings()]);
+  };
+
+  const loadSeats = async () => {
     try {
       setIsLoading(true);
-      setError('');
+      const params: any = { 
+        is_active: true,
+        building: selectedBuilding, // Always 'reading'
+        floor_hall: selectedFloorHall
+      };
       
-      const [bookingsResponse] = await Promise.all([
-        api.bookings.getMyBookings()
-      ]);
-      
-      // Filter active bookings
-      const activeBookings = bookingsResponse.bookings.filter((booking: Booking) => 
-        booking.status === 'active'
-      );
-      setMyBookings(activeBookings);
-      
-      // Load seats separately
-      await loadSeats();
+      if (selectedSeatType !== 'all') {
+        params.seat_type = selectedSeatType;
+      }
+
+      const response = await api.seats.getAll(params);
+      setSeats(response.seats || []);
     } catch (err: any) {
-      setError(err.message || 'Failed to load data');
-      console.error('Load data error:', err);
+      setError(err.message || 'Failed to load seats');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loadSeats = async () => {
+  const loadMyBookings = async () => {
     try {
-      console.log(`🔍 Loading seats for: ${selectedBuilding} - ${selectedFloorHall}`);
-      
-      const params = {
-        building: selectedBuilding,
-        floor_hall: selectedFloorHall,
-        limit: '1000' // Ensure we get all seats
-      };
-      
-      console.log('API params:', params);
-      
-      const seatsResponse = await api.seats.getAll(params);
-      console.log(`📊 Received ${seatsResponse.seats?.length || 0} seats`);
-      console.log('API response:', seatsResponse);
-      
-      setSeats(seatsResponse.seats || []);
-      
-      // Debug specific halls
-      if (selectedBuilding === 'reading' && (selectedFloorHall === 'hall_2' || selectedFloorHall === 'hall_3')) {
-        console.log(`🐛 Debug ${selectedFloorHall}:`, {
-          building: selectedBuilding,
-          floor_hall: selectedFloorHall,
-          seats_count: seatsResponse.seats?.length || 0,
-          sample_seats: seatsResponse.seats?.slice(0, 3).map((s: Seat) => `${s.building}-${s.floor_hall}-${s.section}${s.seat_number}`)
-        });
-      }
-      
+      const response = await api.bookings.getMyBookings();
+      setMyBookings(response.bookings || []);
     } catch (err: any) {
-      console.error('Load seats error:', err);
-      setError(err.message || 'Failed to load seats');
-      setSeats([]);
+      setError(err.message || 'Failed to load bookings');
     }
   };
 
@@ -146,6 +111,7 @@ export default function DashboardPage() {
     try {
       setError('');
       await api.bookings.cancel(bookingId);
+      // Reload data to reflect changes
       await loadData();
     } catch (err: any) {
       setError(err.message || 'Failed to cancel booking');
@@ -173,27 +139,15 @@ export default function DashboardPage() {
 
   // Get available seat types for the selected location
   const getAvailableSeatTypes = () => {
-    if (selectedBuilding === 'main') {
-      const structure = LIBRARY_STRUCTURE.main[selectedFloorHall as keyof typeof LIBRARY_STRUCTURE.main];
-      if (!structure) return ['all'];
-      
-      const availableTypes = new Set<string>(['all']);
-      Object.values(structure.sections).forEach(section => {
-        availableTypes.add(section.type);
-      });
-      
-      return Array.from(availableTypes);
-    } else {
-      const structure = LIBRARY_STRUCTURE.reading[selectedFloorHall as keyof typeof LIBRARY_STRUCTURE.reading];
-      if (!structure) return ['all'];
-      
-      const availableTypes = new Set<string>(['all']);
-      Object.values(structure.sections).forEach(section => {
-        availableTypes.add(section.type);
-      });
-      
-      return Array.from(availableTypes);
-    }
+    const structure = LIBRARY_STRUCTURE.reading[selectedFloorHall as keyof typeof LIBRARY_STRUCTURE.reading];
+    if (!structure) return ['all'];
+    
+    const availableTypes = new Set<string>(['all']);
+    Object.values(structure.sections).forEach(section => {
+      availableTypes.add(section.type);
+    });
+    
+    return Array.from(availableTypes);
   };
 
   const seatTypeOptions = getAvailableSeatTypes().map(type => ({
@@ -224,158 +178,120 @@ export default function DashboardPage() {
           <h1 className="text-2xl font-bold text-white">
             Dashboard - Welcome back, {user?.name}!
           </h1>
-          <div className="flex gap-3">
-            <Button
-              onClick={() => router.push('/breaks')}
-              variant="outline"
-              className="border-blue-600 text-blue-400 hover:bg-blue-600 hover:text-white"
-            >
-              Available Breaks
-            </Button>
-            <Button
-              onClick={() => router.push('/admin')}
-              variant="secondary"
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              Admin Panel
-            </Button>
-          </div>
+          <Button
+            onClick={loadData}
+            variant="outline"
+            className="border-gray-600 text-gray-300 hover:bg-gray-700"
+          >
+            Refresh
+          </Button>
         </div>
 
         {/* Error Display */}
         {error && (
-          <div className="mb-6 bg-red-900 border border-red-700 text-red-100 px-4 py-3 rounded-lg">
-            <strong className="font-bold">Error: </strong>
-            <span>{error}</span>
-            <button 
-              onClick={() => setError('')}
-              className="float-right font-bold text-red-200 hover:text-white"
-            >
-              ×
-            </button>
-          </div>
-        )}
-
-        {/* My Active Bookings */}
-        {myBookings.length > 0 && (
-          <Card className="bg-gray-800 border-gray-700 mb-6">
-            <h2 className="text-xl font-semibold text-white mb-4">My Active Bookings</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {myBookings.map((booking) => (
-                <BookingCard
-                  key={booking.id}
-                  booking={booking}
-                  onCancel={handleCancelBooking}
-                  onCreateBreak={handleCreateBreak}
-                />
-              ))}
-            </div>
+          <Card className="bg-red-900 border-red-700 mb-6">
+            <p className="text-red-300 p-4">{error}</p>
           </Card>
         )}
 
-        {/* Break Information */}
+        {/* Filters */}
         <Card className="bg-gray-800 border-gray-700 mb-6">
-          <h2 className="text-xl font-semibold text-white mb-4">📋 Break System</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-gray-700 p-4 rounded-lg">
-              <h3 className="font-medium text-white mb-2">🎯 Create a Break</h3>
-              <ul className="text-gray-300 space-y-1">
-                <li>• Let others use your seat</li>
-                <li>• Duration: 30 minutes to 5 hours</li>
-                <li>• Must be during your active booking</li>
-                <li>• Add notes for break takers</li>
-              </ul>
-            </div>
-            
-            <div className="bg-gray-700 p-4 rounded-lg">
-              <h3 className="font-medium text-white mb-2">📍 Take a Break</h3>
-              <ul className="text-gray-300 space-y-1">
-                <li>• Find available breaks from other users</li>
-                <li>• Filter by location and duration</li>
-                <li>• No WiFi confirmation needed</li>
-                <li>• Instant booking activation</li>
-              </ul>
+          <div className="p-4">
+            <h3 className="text-lg font-semibold text-white mb-4">Find Seats</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Building Selection - Hidden since only reading rooms */}
+              <input type="hidden" value={selectedBuilding} />
+              
+              {/* Floor/Hall Selection */}
+              <div>
+                <label className="block text-gray-300 text-sm mb-2">Hall</label>
+                <select
+                  value={selectedFloorHall}
+                  onChange={(e) => setSelectedFloorHall(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {floorHallOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Seat Type */}
+              <div>
+                <label className="block text-gray-300 text-sm mb-2">Seat Type</label>
+                <select
+                  value={selectedSeatType}
+                  onChange={(e) => setSelectedSeatType(e.target.value)}
+                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {seatTypeOptions.map(option => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Search Button */}
+              <div className="flex items-end">
+                <Button
+                  onClick={loadSeats}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                >
+                  Search Seats
+                </Button>
+              </div>
             </div>
           </div>
         </Card>
 
-        {/* Location and Seat Type Filters */}
-        <Card className="bg-gray-800 border-gray-700 mb-6">
-          <h2 className="text-xl font-semibold text-white mb-4">Book a Seat</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className="block text-gray-300 text-sm font-medium mb-2">
-                Building
-              </label>
-              <select
-                value={selectedBuilding}
-                onChange={(e) => setSelectedBuilding(e.target.value as 'main' | 'reading')}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {BUILDING_OPTIONS.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-gray-300 text-sm font-medium mb-2">
-                Floor/Hall
-              </label>
-              <select
-                value={selectedFloorHall}
-                onChange={(e) => setSelectedFloorHall(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {floorHallOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-gray-300 text-sm font-medium mb-2">
-                Seat Type
-              </label>
-              <select
-                value={selectedSeatType}
-                onChange={(e) => setSelectedSeatType(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {seatTypeOptions.map(option => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Seats Grid */}
+          <div className="lg:col-span-2">
+            <Card className="bg-gray-800 border-gray-700">
+              <div className="p-4">
+                <h3 className="text-lg font-semibold text-white mb-4">
+                  Available Seats ({filteredSeats.length})
+                </h3>
+                <SeatGrid
+                  seats={filteredSeats}
+                  onBookSeat={handleBookSeat}
+                  selectedBuilding={selectedBuilding}
+                  selectedFloorHall={selectedFloorHall}
+                />
+              </div>
+            </Card>
           </div>
 
-          {/* Debug Information */}
-          <div className="mb-4 p-3 bg-gray-700 rounded-lg">
-            <p className="text-gray-300 text-sm">
-              📊 <strong>Debug Info:</strong> {selectedBuilding} → {selectedFloorHall} → 
-              Total Seats: {seats.length} → Filtered: {filteredSeats.length}
-            </p>
-            {filteredSeats.length === 0 && seats.length > 0 && (
-              <p className="text-yellow-400 text-sm mt-1">
-                ⚠️ Seats loaded but filtered out. Check filter criteria.
-              </p>
-            )}
+          {/* My Bookings */}
+          <div>
+            <Card className="bg-gray-800 border-gray-700">
+              <div className="p-4">
+                <h3 className="text-lg font-semibold text-white mb-4">
+                  My Bookings ({myBookings.length})
+                </h3>
+                <div className="space-y-4">
+                  {myBookings.length === 0 ? (
+                    <p className="text-gray-400 text-center py-8">
+                      No active bookings
+                    </p>
+                  ) : (
+                    myBookings.map((booking) => (
+                      <BookingCard
+                        key={booking.id}
+                        booking={booking}
+                        onCancel={handleCancelBooking}
+                        onCreateBreak={handleCreateBreak}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+            </Card>
           </div>
-
-          {/* Seat Grid */}
-          <SeatGrid
-            seats={filteredSeats}
-            onBookSeat={handleBookSeat}
-            selectedBuilding={selectedBuilding}
-            selectedFloorHall={selectedFloorHall}
-          />
-        </Card>
+        </div>
       </div>
     </div>
   );

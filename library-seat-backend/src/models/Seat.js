@@ -5,11 +5,13 @@ const seatSchema = new mongoose.Schema({
   building: {
     type: String,
     required: true,
-    enum: ['main', 'reading']
+    enum: ['reading'], // REMOVED 'main'
+    default: 'reading'
   },
   floor_hall: {
     type: String,
-    required: true
+    required: true,
+    enum: ['hall_1', 'hall_2', 'hall_3'] // Only reading halls
   },
   section: {
     type: String,
@@ -22,15 +24,16 @@ const seatSchema = new mongoose.Schema({
   seat_type: {
     type: String,
     required: true,
-    enum: ['individual', 'group', 'computer']
+    enum: ['individual'], // Only individual seats
+    default: 'individual'
   },
   has_power: {
     type: Boolean,
-    default: false
+    default: true // All reading hall seats have power
   },
   has_monitor: {
     type: Boolean,
-    default: false
+    default: false // Reading halls don't have monitors
   },
   is_active: {
     type: Boolean,

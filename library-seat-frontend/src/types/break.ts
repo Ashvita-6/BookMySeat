@@ -4,13 +4,13 @@ export interface Break {
   booking_id: number;
   user_id: number;
   user_name: string;
-  user_student_id?: string; // FIXED: Added missing property
+  user_student_id?: string;
   seat_id: number;
-  building: 'main' | 'reading';
+  building: 'reading'; // REMOVED 'main'
   floor_hall: string;
   section: string;
   seat_number: string;
-  seat_type: 'individual' | 'group' | 'computer';
+  seat_type: 'individual'; // Only individual seats
   break_start_time: string;
   break_end_time: string;
   status: 'active' | 'taken' | 'expired' | 'cancelled';
@@ -28,7 +28,6 @@ export interface Break {
     end_time: string;
     status: string;
   } | null;
-  // FIXED: Added missing original booking properties
   original_booking_start?: string;
   original_booking_end?: string;
   created_at: string;
@@ -43,7 +42,7 @@ export interface CreateBreakData {
 }
 
 export interface BreakFilters {
-  building?: 'main' | 'reading';
+  building?: 'reading'; // REMOVED 'main'
   floor_hall?: string;
   seat_type?: string;
   min_duration?: number;

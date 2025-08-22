@@ -1,11 +1,11 @@
 // library-seat-frontend/src/types/index.ts
 export interface Seat {
   id: number;
-  building: 'main' | 'reading';
+  building: 'reading'; // REMOVED 'main'
   floor_hall: string;
   section: string;
   seat_number: string;
-  seat_type: 'individual' | 'group' | 'computer';
+  seat_type: 'individual'; // Only individual seats
   has_power: boolean;
   has_monitor: boolean;
   is_active: boolean;
@@ -25,11 +25,11 @@ export interface Booking {
   start_time: string;
   end_time: string;
   status: 'active' | 'completed' | 'cancelled';
-  building: 'main' | 'reading';
+  building: 'reading'; // REMOVED 'main'
   floor_hall: string;
   section: string;
   seat_number: string;
-  seat_type: 'individual' | 'group' | 'computer';
+  seat_type: 'individual'; // Only individual seats
   user_name?: string;
   created_at: string;
   updated_at: string;
@@ -51,7 +51,7 @@ export interface CreateBookingData {
 }
 
 export interface SeatFilter {
-  building?: 'main' | 'reading';
+  building?: 'reading'; // REMOVED 'main'
   floor_hall?: string;
   section?: string;
   seat_type?: string;
