@@ -1,3 +1,4 @@
+// library-seat-backend/src/middleware/auth.js
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
@@ -36,4 +37,13 @@ const adminAuth = async (req, res, next) => {
   }
 };
 
-module.exports = { auth, adminAuth };
+// FIXED: Add the missing functions that user routes is looking for
+const authenticateToken = auth; // Alias for consistency
+const requireAdmin = adminAuth; // Alias for consistency
+
+module.exports = { 
+  auth, 
+  adminAuth, 
+  authenticateToken, 
+  requireAdmin 
+};
