@@ -211,7 +211,7 @@ const Dashboard = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(
-        'http://localhost:5000/api/bookings/book',
+        `${API_URL}/api/bookings/book`,
         {
           seatId: pendingBooking.seatId,
           date: pendingBooking.date,

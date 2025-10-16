@@ -1,6 +1,6 @@
 const axios = require('axios');
 
-const BASE_URL = 'http://localhost:5000/api';
+const BASE_URL = `${API_URL}/api` || 'http://localhost:5000/api';
 
 // Create axios instance
 const api = axios.create({
