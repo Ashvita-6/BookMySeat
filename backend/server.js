@@ -8,7 +8,13 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:3000', // Local development
+    'https://bookmyseat-wl7m.onrender.com', // Your production frontend
+  ],
+  credentials: true
+}));
 app.use(express.json());
 
 // Database connection
