@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import API_URL from '../config/api';
 
 const LocationPermission = ({ userId, onPermissionGranted }) => {
   const [loading, setLoading] = useState(false);
@@ -21,7 +22,7 @@ const LocationPermission = ({ userId, onPermissionGranted }) => {
           const { latitude, longitude } = position.coords;
 
           const response = await axios.post(
-            'http://localhost:5000/api/auth/grant-location-permission',
+            `${API_URL}/api/auth/grant-location-permission`,
             {
               userId,
               latitude,

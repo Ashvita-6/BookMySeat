@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import axios from 'axios';
+import API_URL from '../config/api';
 
 /**
  * Custom hook to continuously track and update user location
@@ -21,7 +22,7 @@ const useLocationTracker = (interval = 60000) => {
           if (!token) return;
 
           await axios.post(
-            'http://localhost:5000/api/users/update-location',
+            `${API_URL}/api/users/update-location`,
             { latitude, longitude },
             {
               headers: {

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import API_URL from '../config/api';
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -72,7 +73,7 @@ const Dashboard = () => {
   const fetchUserProfile = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/users/profile', {
+      const response = await axios.get(`${API_URL}/api/users/profile`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setUser(response.data.user);
@@ -102,7 +103,7 @@ const Dashboard = () => {
         params.endTime = endTime;
       }
 
-      const response = await axios.get('http://localhost:5000/api/seats', {
+      const response = await axios.get(`${API_URL}/api/seats`, {
         headers: { Authorization: `Bearer ${token}` },
         params
       });

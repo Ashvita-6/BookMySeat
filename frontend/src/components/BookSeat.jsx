@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import API_URL from '../config/api';
 
 const BookSeat = () => {
   const navigate = useNavigate();
@@ -22,7 +23,7 @@ const BookSeat = () => {
   const fetchSeats = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/seats', {
+      const response = await axios.get(`${API_URL}/api/seats`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setSeats(response.data.seats);
@@ -43,7 +44,7 @@ const BookSeat = () => {
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        'http://localhost:5000/api/bookings/book',
+        `${API_URL}/api/bookings/book`,
         formData,
         {
           headers: { Authorization: `Bearer ${token}` }

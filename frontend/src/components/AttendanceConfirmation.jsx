@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import API_URL from '../config/api';
 
 const AttendanceConfirmation = ({ booking, onAttendanceConfirmed }) => {
   const [loading, setLoading] = useState(false);
@@ -68,7 +69,7 @@ const AttendanceConfirmation = ({ booking, onAttendanceConfirmed }) => {
 
           // First update user location
           const locationResponse = await axios.post(
-            'http://localhost:5000/api/users/update-location',
+            `${API_URL}/api/users/update-location`,
             { latitude, longitude },
             {
               headers: {
@@ -82,7 +83,7 @@ const AttendanceConfirmation = ({ booking, onAttendanceConfirmed }) => {
 
           // Then confirm attendance
           const response = await axios.post(
-            `http://localhost:5000/api/bookings/confirm-attendance/${booking._id}`,
+            `${API_URL}/api/bookings/confirm-attendance/${booking._id}`,
             { latitude, longitude },
             {
               headers: {

@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import AttendanceConfirmation from './AttendanceConfirmation';
 import useLocationTracker from '../hooks/useLocationTracker';
+import API_URL from '../config/api';
 
 const MyBookings = () => {
   const navigate = useNavigate();
@@ -35,7 +36,7 @@ const MyBookings = () => {
   const fetchBookings = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://localhost:5000/api/bookings/my-bookings', {
+      const response = await axios.get(`${API_URL}/api/bookings/my-bookings`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -56,7 +57,7 @@ const MyBookings = () => {
 
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:5000/api/bookings/${bookingId}`, {
+      await axios.delete(`${API_URL}/api/bookings/${bookingId}`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -93,7 +94,7 @@ const MyBookings = () => {
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        `http://localhost:5000/api/bookings/start-break/${selectedBookingForBreak._id}`,
+        `${API_URL}/api/bookings/start-break/${selectedBookingForBreak._id}`,
         {
           breakStartTime,
           breakEndTime
@@ -122,7 +123,7 @@ const MyBookings = () => {
     try {
       const token = localStorage.getItem('token');
       await axios.post(
-        `http://localhost:5000/api/bookings/end-break/${bookingId}`,
+        `${API_URL}/api/bookings/end-break/${bookingId}`,
         {},
         {
           headers: { Authorization: `Bearer ${token}` }
