@@ -215,6 +215,15 @@ router.post('/start-break/:bookingId', authenticateToken, async (req, res) => {
       });
     }
 
+    // FIXED: Use the populated seat directly instead of fetching again
+    const seat = booking.seat;
+    
+    if (!seat) {
+      return res.status(404).json({ 
+        message: 'Seat not found' 
+      });
+    }
+
     if (booking.user.toString() !== req.userId) {
       return res.status(403).json({ 
         message: 'Unauthorized' 
@@ -238,7 +247,7 @@ router.post('/start-break/:bookingId', authenticateToken, async (req, res) => {
       });
     }
 
-    const seat = await Seat.findById(booking.seat._id);
+     seat = await Seat.findById(booking.seat._id);
     if (!seat) {
       return res.status(404).json({ 
         message: 'Seat not found' 
@@ -288,25 +297,30 @@ router.post('/start-break/:bookingId', authenticateToken, async (req, res) => {
       }
     }
 
+    // Update statuses
     booking.currentBreak = {
       startTime: breakStartTime,
       endTime: breakEndTime,
       startedAt: new Date()
     };
-    seat.status = 'on-break';
     booking.status = 'on-break';
+    seat.status = 'on-break';
     
+    // Save both documents atomically
     booking.markModified('currentBreak');
     booking.markModified('status');
+    
+    // Save seat first, then booking
     await seat.save();
     await booking.save();
 
-    const updatedBooking = await Booking.findById(bookingId).populate('seat');
+    // Update the booking.seat reference to reflect saved status
+    booking.seat = seat;
    
     res.json({
       message: 'Break started successfully. Your seat is now available for others during break time.',
-      booking: updatedBooking,
-      currentBreak: updatedBooking.currentBreak
+      booking: booking,
+      currentBreak: booking.currentBreak
     });
   } catch (error) {
     console.error('Start break error:', error);
@@ -342,13 +356,22 @@ router.post('/end-break/:bookingId', authenticateToken, async (req, res) => {
       });
     }
 
+    // FIXED: Use populated seat directly
+    const seat = booking.seat;
+    
+    if (!seat) {
+      return res.status(404).json({ 
+        message: 'Seat not found' 
+      });
+    }
+
     const dayStart = new Date(booking.date);
     dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(booking.date);
     dayEnd.setHours(23, 59, 59, 999);
 
     const breakBookings = await Booking.find({
-      seat: booking.seat._id,
+      seat: seat._id,
       date: {
         $gte: dayStart,
         $lt: dayEnd
@@ -382,18 +405,22 @@ router.post('/end-break/:bookingId', authenticateToken, async (req, res) => {
 
     booking.currentBreak = null;
     booking.status = 'confirmed';
+    seat.status = 'occupied';  // FIXED: Set back to occupied when break ends
     
     booking.markModified('breaks');
     booking.markModified('currentBreak');
     booking.markModified('status');
     
+    // Save seat first, then booking
+    await seat.save();
     await booking.save();
-
-    const updatedBooking = await Booking.findById(bookingId).populate('seat');
+    
+    // Update the booking.seat reference
+    booking.seat = seat;
 
     res.json({
       message: 'Break ended successfully',
-      booking: updatedBooking
+      booking: booking
     });
   } catch (error) {
     console.error('End break error:', error);
