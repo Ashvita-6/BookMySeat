@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { io } from "socket.io-client";
 import Home from './pages/Home';
 import Register from './components/Register';
 import Login from './components/Login';
@@ -9,6 +10,30 @@ import MyBookings from './components/MyBookings';
 import './App.css';
 
 function App() {
+  // Connect websocket once on app mount
+  useEffect(() => {
+    // Use env var or default to localhost
+    const SERVER = process.env.REACT_APP_SERVER || 'http://localhost:5000';
+    const socket = io(SERVER, {
+      autoConnect: true,
+      // If you later want to send auth token: auth: { token: localStorage.getItem('token') }
+    });
+
+    socket.on("connect", () => {
+      console.log("WS connected:", socket.id);
+    });
+
+    socket.on("hello", (data) => {
+      console.log("WS hello:", data.msg);
+    });
+
+    // cleanup on unmount
+    return () => {
+      socket.off("hello");
+      socket.disconnect();
+    };
+  }, []);
+
   // Check if user is authenticated
   const isAuthenticated = () => {
     return localStorage.getItem('token') !== null;
